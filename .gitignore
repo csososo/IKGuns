@@ -1,0 +1,13 @@
+# Rojo build output
+*.rbxlx
+*.rbxmx
+build/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Roblox place backups
+*.rbxl.lock
