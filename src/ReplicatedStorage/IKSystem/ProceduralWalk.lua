@@ -555,10 +555,26 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		measured from, so idle needs no separate code path. Stance width and
 		the forward bias are posture rather than gait, so they apply even
 		standing still.
+
+		Strafe posture rides on the same expression. Side-stepping puts both
+		feet on one line across the body, where they read as a single mass
+		with nothing to clear each other by -- so the feet stagger fore and
+		aft, the stance widens, and the swing lifts a little higher.
+		Staggering is what people do anyway: you lead with the near foot
+		rather than keeping your feet square.
+
+		`lead` is +1 for the foot on the side you are heading towards and -1
+		for the other, scaled by how sideways the travel is, so every strafe
+		term vanishes on its own when walking forward. No separate case.
 	]]
+	local lateral = moveDir:Dot(frame.RightVector)
+	local sideways = math.abs(lateral)
+	local lead = side.sign * lateral
+
 	local neutral = Vector3.new(hipPos.X, floorY, hipPos.Z)
-		+ frame.LookVector * cfg.FootAhead
-		+ frame.RightVector * (side.sign * cfg.StanceWidth * 0.5)
+		+ frame.LookVector * (cfg.FootAhead + cfg.StrafeStagger * lead)
+		+ frame.RightVector
+			* (side.sign * (cfg.StanceWidth + cfg.StrafeWidth * sideways) * 0.5)
 
 	--[[
 		Out of reach while planted: STEP, do not slide.
@@ -622,7 +638,7 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 
 		leg.from = leg.from or neutral
 		place = leg.from:Lerp(landing, t * t * (3 - 2 * t))
-		lift = swingLift(t, cfg.StepHeight)
+		lift = swingLift(t, cfg.StepHeight + cfg.StrafeLift * sideways)
 		leg.anchor = landing
 	else
 		--[[

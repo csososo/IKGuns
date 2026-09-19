@@ -353,6 +353,24 @@ Config.Walk = {
 	StepHeight = 0.621,
 	-- Extra spread between the feet, on top of the rig's own hip spacing.
 	StanceWidth = 0.224,
+
+	--[[
+		Strafe posture, all of it scaled by how sideways the travel is, so
+		forward walking is untouched.
+
+		Side-stepping puts both feet on one line across the body, where they
+		read as a single mass with nothing to clear each other by. Stagger
+		puts the foot on the side you are heading towards in front and the
+		other behind -- a clear front leg and a clear back leg -- which is
+		also what people do, leading with the near foot rather than keeping
+		their feet square. Negate it to lead with the far foot instead.
+
+		Width and lift are clearance: a little more room across, and a little
+		more height on the swing so the moving foot passes the planted one.
+	]]
+	StrafeStagger = 0.35,
+	StrafeWidth = 0.3,
+	StrafeLift = 0.2,
 	--[[
 		Fraction of each foot's cycle spent on the ground.
 
@@ -579,6 +597,9 @@ Config.WalkRanges = {
 	MinStrideScale = { 0.05, 1 },
 	StepHeight = { 0, 2 },
 	StanceWidth = { -1, 1 },
+	StrafeStagger = { -1.5, 1.5 },
+	StrafeWidth = { 0, 1.5 },
+	StrafeLift = { 0, 1 },
 	DutyFactor = { 0.4, 0.9 },
 	FootAhead = { -1.5, 1.5 },
 	AnkleHeight = { 0, 1 },

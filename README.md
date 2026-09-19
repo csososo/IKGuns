@@ -257,6 +257,16 @@ to meet the heading it is about to land on. At low blend it eases back to
 facing anyway, so turning on the spot brings the feet round rather than
 leaving them splayed.
 
+**Strafing gets its own posture.** Side-stepping puts both feet on one line
+across the body, where they read as a single mass with nothing to clear each
+other by. So the feet stagger fore and aft — `StrafeStagger` puts the foot on
+the side you are heading towards in front and the other behind, giving a clear
+front leg and a clear back leg, which is what people do anyway. `StrafeWidth`
+and `StrafeLift` add the clearance: a little more room across, a little more
+height on the swing so the moving foot passes the planted one. All three scale
+with how sideways the travel is, so forward walking is untouched and there is
+no separate case for it.
+
 **Side-steps are shorter, and have to be.** The feet are held apart *across*
 the body, so sideways travel runs the stride along the very axis keeping them
 apart. A step longer than twice the separation lands the trailing foot past
