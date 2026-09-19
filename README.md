@@ -241,12 +241,19 @@ worse: the trailing foot hits the limit and *stops*, so the leg slides instead
 of stepping. `SideStepRatio` scales the stride down as travel turns sideways
 instead, which keeps both feet stepping.
 
-**Standing still, a foot stays where it is.** Folding back to "under the hip"
-makes the feet orbit the body whenever it turns — in shift lock, where the
-character follows the camera, that is every time you look around. The resting
-pose is therefore the anchor, not the hip, dragged in only once it has drifted
-past `IdleSlack`. For the same reason a planted foot never rotates at all; the
-`MaxFootLag` pivot is the only thing permitted to move it.
+**The idle stance is symmetric, but pinned to a frozen frame.** Two
+requirements look contradictory here: feet must settle into an even stance
+when you stop, *and* must not slide about when the body turns underneath them
+— which in shift lock is every time you move the camera.
+
+Leaving each foot where it last landed satisfies the second and fails the
+first: the stance keeps whatever asymmetry the last step ended on, and a
+deadzone means it stays there forever, one leg permanently out. So the stance
+is computed symmetrically, under each hip, but against a **frozen copy of the
+body frame**. Turning the camera moves nothing. Once the body has moved or
+turned too far to stand in, that frame eases across and the feet shuffle with
+it. For the same reason a planted foot never rotates except during a shuffle
+or past the `MaxFootLag` pivot.
 
 Foot heading is an **angle off the facing**, clamped by `MaxFootYaw`, not a
 lerp between two direction vectors — that collapses to zero length when

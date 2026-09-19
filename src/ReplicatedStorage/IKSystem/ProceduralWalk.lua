@@ -35,6 +35,9 @@ local SIDES = {
 }
 local ORDER = { "Left", "Right" }
 
+-- Below this blend the gait is done and the idle stance owns the feet.
+local SETTLED = 0.05
+
 function ProceduralWalk.new(rig)
 	local self = setmetatable({}, ProceduralWalk)
 	self.rig = rig
@@ -370,13 +373,54 @@ function ProceduralWalk:Update(dt: number)
 	local pelvisCF = op * restPelvis * CFrame.Angles(0, yaw, 0)
 	rootMotor.Transform = parentCF:Inverse() * pelvisCF * rootMotor.C1
 
+	--[[
+		The frame the idle stance is pinned to.
+
+		Feet must do two things that look contradictory: settle into a
+		symmetric stance when you stop, and NOT slide about when the body
+		turns underneath them. Resolving that by leaving each foot where it
+		last landed satisfies the second and fails the first -- the stance
+		keeps whatever asymmetry the last step happened to end on, and a
+		deadzone means it stays there forever.
+
+		So the stance is symmetric, but pinned to a frozen copy of the body
+		frame. Feet sit under their hips AS OF that frame, so turning the
+		camera moves nothing; once the body has moved or turned too far to
+		stand in, the frame eases across and the feet shuffle with it.
+	]]
+	local ground = Vector3.new(pelvisCF.Position.X, floorY, pelvisCF.Position.Z)
+	local bodyCF = CFrame.lookAt(ground, ground + frame.LookVector)
+	self.stance = self.stance or bodyCF
+
+	if self.blend > SETTLED then
+		-- Stepping: the anchors are doing this job, so the stance just follows.
+		self.stance = bodyCF
+		self.shuffling = false
+	else
+		local off = self.stance:ToObjectSpace(bodyCF)
+		local drifted = Vector3.new(off.X, 0, off.Z).Magnitude
+		local turned = math.abs(math.atan2(-off.LookVector.X, -off.LookVector.Z))
+		if drifted > cfg.IdleSlack or turned > math.rad(cfg.MaxFootLag) then
+			self.shuffling = true
+		end
+		if self.shuffling then
+			self.stance = self.stance:Lerp(bodyCF,
+				math.clamp(dt / math.max(cfg.IdleStepTime, 1e-3), 0, 1))
+			local now = self.stance:ToObjectSpace(bodyCF)
+			if Vector3.new(now.X, 0, now.Z).Magnitude < 0.02
+				and math.abs(math.atan2(-now.LookVector.X, -now.LookVector.Z)) < math.rad(2) then
+				self.shuffling = false
+			end
+		end
+	end
+
 	local chestCF = self:_spine(pelvisCF, yaw)
 	local duty = math.clamp(cfg.DutyFactor, 0.05, 0.95)
 
 	for _, side in ORDER do
 		local leg = self.legs[side]
 		if leg then
-			self:_leg(leg, SIDES[side], frame, moveDir, stepLength, pelvisCF, floorY, params)
+			self:_leg(leg, SIDES[side], frame, moveDir, stepLength, pelvisCF, bodyCF, floorY, params)
 			self:_arm(leg, (self.phase + SIDES[side].offset) % 1, chestCF, frame)
 		end
 	end
@@ -416,7 +460,7 @@ function ProceduralWalk:_spine(pelvisCF: CFrame, yaw: number)
 	return parent
 end
 
-function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLength: number, pelvisCF: CFrame, floorY: number, params: RaycastParams)
+function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLength: number, pelvisCF: CFrame, bodyCF: CFrame, floorY: number, params: RaycastParams)
 	local cfg = Config.Walk
 
 	local hipCF = pelvisCF * leg.hip.C0
@@ -495,28 +539,23 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 	end
 
 	--[[
-		Standing still, a foot stays where it is.
+		The standing position: under this hip, but in the STANCE frame
+		rather than the live one.
 
-		Folding straight back to "under the hip" means the feet orbit the
-		body every time it turns. In shift lock the character follows the
-		camera, so that is every time you look around -- the feet slide
-		about with nobody stepping, which is exactly what "they move on
-		their own" is.
-
-		So the resting pose is the anchor, not the hip. It is dragged in
-		only once it has drifted further than IdleSlack, which is the
-		shuffle you do when you have turned too far to stand comfortably.
+		Symmetric, so stopping always settles to the same pose instead of
+		keeping whatever asymmetry the last step left -- and frozen, so
+		turning the camera in shift lock does not drag the feet round with
+		it. The stance frame catches up separately, as a shuffle.
 	]]
-	local rest = leg.anchor or neutral
-	local drift = Vector3.new(rest.X - neutral.X, 0, rest.Z - neutral.Z)
-	if drift.Magnitude > cfg.IdleSlack then
-		rest = rest:Lerp(neutral,
-			math.clamp((self.dt or 0) / math.max(cfg.IdleStepTime, 1e-3), 0, 1))
-		leg.anchor = rest
-	end
+	local rest = self.stance:PointToWorldSpace(bodyCF:PointToObjectSpace(neutral))
 
 	place = rest:Lerp(place, self.blend)
 	lift *= self.blend
+	if self.blend <= SETTLED then
+		-- Start the next stride from where the foot actually is.
+		leg.anchor = rest
+		leg.from = rest
+	end
 
 	local plant = place
 
@@ -560,7 +599,8 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		is the only thing that may move a planted foot, and it only fires
 		once the mismatch is too big to stand in.
 	]]
-	local turn = swinging and (self.dt or 0) / math.max(cfg.FootTurnTime, 1e-3) or 0
+	local turn = (swinging or self.shuffling)
+		and (self.dt or 0) / math.max(cfg.FootTurnTime, 1e-3) or 0
 	leg.footRot = leg.footRot
 		and leg.footRot:Lerp(wantRot, math.clamp(turn, 0, 1))
 		or wantRot
