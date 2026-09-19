@@ -616,14 +616,31 @@ how any given `C0` happens to be oriented.
 
 ## Multiplayer
 
-As shipped this is client-local: **you only see your own IK.** To extend it:
+Everyone sees everyone's gait. It is not a server script, which is the
+obvious thing to reach for and does not work: **`Motor6D.Transform` does not
+replicate.** Joints written on the server reach nobody, and making them reach
+anyone would mean streaming a CFrame per joint per frame, per character,
+forever.
 
-1. Run `IKSystem.new` over every character on each client, not just
-   `LocalPlayer.Character`. Foot planting then works for everyone for free.
-2. Aim direction does not replicate. Send it to the server on a `RemoteEvent`
-   at ~10–20 Hz, write it to a character attribute, and have remote characters
-   read that instead of `workspace.CurrentCamera`.
+It does not need to. The gait is a pure function of the root's position and
+velocity and the ground under it, and all three replicate already — so every
+client runs `ProceduralWalk` for every character it can see and arrives at the
+same walk locally, at no bandwidth cost. `IKController` owns that: one
+`Stepped` pass over every character, culled past `CULL_DISTANCE`.
 
-Do not create the `IKControl`s on the server and drive targets from the client —
-client-side attachment positions do not replicate, so the server would solve
-against stale targets.
+Two things are deliberately local-only. **Aim and arms** run for your own
+character alone, because both are driven by the camera and there is exactly
+one camera — run them for everyone and every remote torso turns to follow
+*yours*, which is worse than not aiming at all. Doing it properly means
+replicating each player's look direction, which is a networking feature rather
+than a gait one. And **`MovementController`** is input, so it only ever
+touches your own `WalkSpeed`; the speed change replicates, and everyone else's
+client derives the right gait from the velocity that results.
+
+Phases are not synchronised between clients, so two people watching a third
+see its legs at slightly different points in the cycle. Nobody can tell, and
+the alternative is a network message per frame.
+
+None of this is authoritative. It is decoration, and nothing here should ever
+decide a hit — that belongs on the server, working from the replicated root
+rather than from these joints.
