@@ -267,8 +267,13 @@ lerp between two direction vectors — that collapses to zero length when
 travel opposes facing, and before that it points the feet backwards when
 walking backwards. Folding the yaw difference into the front half discards
 the reversal and keeps only how far off-axis the travel is. A planted foot
-may lag the body by `MaxFootLag` before it is dragged round, which is the
-pivot a real foot does on the ball rather than staying welded through a turn.
+may lag the body by `MaxFootLag` before it pivots round, at `PivotRate` and
+going all the way rather than stopping at the limit — which is what a pivot on
+the ball of the foot does, and also avoids re-triggering on every frame the
+body keeps turning. Doing that catch-up in a single frame is what made one leg
+snap when adding A to a held W or S: with `AutoRotate` the character faces
+wherever it is going, so the body swings the full 45° of the new input,
+straight past the limit, on the turn's first frame.
 
 What stays deliberately body-relative: stance width, the `FootAhead` posture,
 the sway axis, the arm-swing plane, and the knee pole — knees bend forward

@@ -473,6 +473,15 @@ Config.Walk = {
 	]]
 	MaxFootLag = 35,
 	--[[
+		How fast a planted foot pivots to catch up, degrees per second.
+
+		This used to happen in a single frame, which is the leg snapping when
+		you add A to a held W or S: AutoRotate turns the body the full 45
+		degrees of the new input, straight past MaxFootLag, and the excess was
+		taken away instantly.
+	]]
+	PivotRate = 270,
+	--[[
 		Longest side-step, as a multiple of how far apart the feet stand.
 
 		Sideways travel runs the stride along the same axis that keeps the
@@ -549,6 +558,7 @@ Config.WalkRanges = {
 	FootTurnToMove = { 0, 1 },
 	MaxFootYaw = { 0, 60 },
 	MaxFootLag = { 5, 90 },
+	PivotRate = { 45, 720 },
 	SideStepRatio = { 0.8, 3 },
 	IdleSlack = { 0.1, 2 },
 	IdleStepTime = { 0.05, 1 },

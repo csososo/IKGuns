@@ -125,6 +125,8 @@ function ProceduralWalk:_measure()
 			from = nil,
 			-- Phase offset from an early step, unwound over later strides.
 			shift = 0,
+			-- True while this foot is turning under itself to catch up.
+			pivoting = false,
 			-- The heading this foot landed on. Held for as long as it is
 			-- planted, so turning the body cannot spin a foot in place.
 			footRot = nil,
@@ -673,19 +675,33 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		or wantRot
 
 	--[[
-		A planted foot may lag the body, but only so far.
+		A planted foot may lag the body, but only so far -- and it catches
+		up at a speed, not in a frame.
 
-		Holding the landing heading for the whole of stance is right until
-		you turn while walking: a long stance against a fast turn leaves the
-		foot pointing where you used to be going, sometimes by most of a
-		right angle. Past the limit it is dragged round, which is exactly
-		the pivot a real foot does on the ball rather than staying welded.
+		Holding the landing heading through stance is right until you turn
+		while walking. With AutoRotate the character faces wherever it is
+		going, so adding A to a held W or S swings the body a full 45
+		degrees: straight past the limit, on the first frame of the turn.
+		Snapping the excess away there is what made one leg jump.
+
+		Rate-limited, and once started it goes all the way round rather
+		than stopping at the limit, because that is what a pivot on the
+		ball of the foot actually does. Stopping at the limit would also
+		re-trigger every frame the body kept turning, which is a snap per
+		frame rather than one.
 	]]
 	local lag = leg.footRot.LookVector
 	local lagYaw = math.atan2(lag:Dot(frame.RightVector), lag:Dot(frame.LookVector))
-	local maxLag = math.rad(cfg.MaxFootLag)
-	if math.abs(lagYaw) > maxLag then
-		leg.footRot *= CFrame.Angles(0, lagYaw - math.clamp(lagYaw, -maxLag, maxLag), 0)
+	if math.abs(lagYaw) > math.rad(cfg.MaxFootLag) then
+		leg.pivoting = true
+	end
+	if leg.pivoting then
+		if math.abs(lagYaw) < math.rad(3) then
+			leg.pivoting = false
+		else
+			local rate = math.rad(cfg.PivotRate) * (self.dt or 0)
+			leg.footRot *= CFrame.Angles(0, math.clamp(lagYaw, -rate, rate), 0)
+		end
 	end
 
 	--[[
