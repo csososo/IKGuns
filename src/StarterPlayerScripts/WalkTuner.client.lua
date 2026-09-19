@@ -13,6 +13,7 @@
 ]]
 
 local ContextActionService = game:GetService("ContextActionService")
+local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
@@ -70,6 +71,46 @@ local GROUPS = {
 	-- The speed this profile represents; the gait blends between them.
 	{ "Gait", { "AtSpeed" } },
 }
+
+--[[
+	Tuner edits reach the other clients through GaitSync.
+
+	Config is a ModuleScript, so every client holds its own copy: without
+	this, tuning only ever changed your own view and everybody else kept
+	running the committed values, including on your character.
+
+	Batched rather than sent per change. A dragged slider changes every
+	frame, and the server drops anything arriving faster than its own
+	interval, so sending each one would mostly be sending things to be
+	thrown away.
+]]
+local remote = ReplicatedStorage:WaitForChild("GaitTuning", 10)
+local pending = {}
+local pendingProfile = nil
+
+local function broadcast(profileName: string, key: string, value: number)
+	if not remote then
+		return
+	end
+	-- One profile in flight at a time; switching flushes what is queued.
+	if pendingProfile and pendingProfile ~= profileName then
+		remote:FireServer(pendingProfile, pending)
+		pending = {}
+	end
+	pendingProfile = profileName
+	pending[key] = value
+end
+
+if remote then
+	RunService.Heartbeat:Connect(function()
+		if pendingProfile and next(pending) then
+			remote:FireServer(pendingProfile, pending)
+			pending = {}
+		end
+	end)
+else
+	warn("[WalkTuner] no GaitTuning remote; edits stay local to this client.")
+end
 
 local player = Players.LocalPlayer
 local gui = Instance.new("ScreenGui")
@@ -246,6 +287,7 @@ local function slider(key: string, min: number, max: number)
 	local function set(value: number)
 		PROFILES[current][2][key] = value
 		show(value)
+		broadcast(PROFILES[current][1], key, value)
 	end
 
 	table.insert(refresh, function()
@@ -340,6 +382,35 @@ copy.Activated:Connect(function()
 	end
 	print(table.concat(out, "\n"))
 end)
+
+--[[
+	Apply what everyone else tuned.
+
+	This half runs whether or not you ever open the panel -- it is what
+	makes another player's tuning visible on your screen, so it has to be
+	live on every client, not just the one doing the dragging.
+
+	The sliders are refreshed too, so two people tuning at once see the
+	same numbers rather than quietly disagreeing.
+]]
+if remote then
+	remote.OnClientEvent:Connect(function(profileName, values)
+		local store = Config[profileName]
+		if type(store) ~= "table" or type(values) ~= "table" then
+			return
+		end
+		for key, value in values do
+			if type(value) == "number" and type(store[key]) == "number" then
+				store[key] = value
+			end
+		end
+		if profileName == PROFILES[current][1] then
+			for _, again in refresh do
+				again()
+			end
+		end
+	end)
+end
 
 ContextActionService:BindAction("ToggleWalkTuner", function(_, state)
 	if state == Enum.UserInputState.Begin then

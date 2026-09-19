@@ -95,8 +95,9 @@ Weights are in `Config.Aim.SpineJoints`.
      `StarterPlayer > StarterPlayerScripts`: `IKController` drives the system,
      `CharacterAnimator` plays the clips, `WalkTuner` is the gait panel,
      `MovementController` owns speed, sprint and the camera lock.
-   - `src/ServerScriptService/CharacterSetup.server.lua` → a Script in
-     `ServerScriptService`.
+   - `src/ServerScriptService/` → Scripts in `ServerScriptService`:
+     `CharacterSetup` forces the rig properties, `GaitSync` relays tuner
+     edits between clients.
 2. Press play. Walk onto a slope — feet should tilt and meet it.
 3. Press `]` for the gait tuner.
 
@@ -657,6 +658,20 @@ replicating each player's look direction, which is a networking feature rather
 than a gait one. And **`MovementController`** is input, so it only ever
 touches your own `WalkSpeed`; the speed change replicates, and everyone else's
 client derives the right gait from the velocity that results.
+
+**Tuning replicates too.** `Config` is a ModuleScript, so every client holds
+its own copy — without help, tuning changes only your own view and everybody
+else keeps running the committed values, including on your character.
+`GaitSync.server.lua` relays each edit so all of them agree, and sends the
+current profiles to anyone joining later so they are not the only one out of
+step.
+
+It is a development tool, and worth being blunt about: it lets any client
+change how every character moves for everyone. Nothing reaching the server can
+hurt it — only known profiles, only keys that already exist as numbers, only
+finite values inside a sane bound, rate-limited and capped — but in a live
+game it is a griefing lever. Delete the script, or narrow its `allowed` check,
+before anyone else is in the place.
 
 Phases are not synchronised between clients, so two people watching a third
 see its legs at slightly different points in the cycle. Nobody can tell, and
