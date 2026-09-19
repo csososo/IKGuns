@@ -273,10 +273,20 @@ strafe posture belongs to the gait, not to standing, and without it the
 stagger and spread survive into idle at full strength so the hips never settle
 after a side-step.
 
-For the same reason the travel direction returns to the body's facing once you
-stop. Holding the last direction leaves it pointing sideways for as long as
-you stand there, and the next walk then starts with it still sideways and has
-to sweep round while the feet step the wrong way.
+The travel direction comes **straight from the smoothed velocity**, with no
+angular rate limit. There was one, from when the direction came off raw
+velocity and a reversal could make it thrash; smoothing the velocity *vector*
+replaced the reason for it and left it behind, where it did real harm. Told to
+go from left to right it rotates the long way round **through forward**, so a
+third of a second into reversing a strafe the gait believes you are walking
+forwards while you are still moving left at twelve studs a second — the strafe
+posture collapses and returns, the stride pulses, and the lean axis swings a
+half turn. Going from rest looks fine because it only travels ninety degrees
+and arrives directly.
+
+The smoothed vector already changes smoothly, and its direction flips at the
+zero crossing, which is exactly when speed is lowest and the gait is folding.
+That flip is what reversing *is*: slow, stop, go the other way.
 
 **Side-steps are shorter, and have to be.** The feet are held apart *across*
 the body, so sideways travel runs the stride along the very axis keeping them

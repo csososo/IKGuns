@@ -36,7 +36,7 @@ local DIM = Color3.fromRGB(150, 150, 160)
 local GROUPS = {
 	{ "Step", { "StepLength", "StrideSpeedRef", "StrideExponent", "MinStrideScale", "StepHeight", "DutyFactor", "StanceWidth", "FootAhead", "AnkleHeight", "MaxStride", "MaxReach", "PhaseRecover" } },
 	{ "Strafe", { "StrafeStagger", "StrafeCross", "StrafeWidth", "StrafeLift", "SideStepRatio" } },
-	{ "Direction", { "FootTurnToMove", "MaxFootYaw", "MaxFootLag", "PivotRate", "KneeFollowsFoot", "FootTurnTime", "TurnRate", "FootSpeedRatio", "MinFootSpeed" } },
+	{ "Direction", { "FootTurnToMove", "MaxFootYaw", "MaxFootLag", "PivotRate", "KneeFollowsFoot", "FootTurnTime", "FootSpeedRatio", "MinFootSpeed" } },
 	{ "Idle", { "IdleSlack", "IdleStepTime" } },
 	{ "Foot roll", { "HeelStrikeAngle", "FlatAt", "HeelRiseAt", "ToeOffAngle", "ToeBend", "FootPitchScale" } },
 	{ "Body", { "BobHeight", "BobPhase", "SwayWidth", "SwayPhase", "LeanAngle" } },

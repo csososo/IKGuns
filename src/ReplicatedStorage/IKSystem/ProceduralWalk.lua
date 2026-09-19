@@ -277,70 +277,34 @@ function ProceduralWalk:Update(dt: number)
 	self.blend = Util.damp(self.blend, moving and 1 or 0, cfg.BlendTime, dt)
 
 	--[[
-		The direction the body is TRAVELLING, which is not the direction it
-		is facing.
+		The direction the body is TRAVELLING, taken straight from the
+		smoothed velocity.
 
-		Steps used to go along the facing, so the feet marched forwards no
-		matter which way the character was actually going: backwards walked
-		the legs the wrong way entirely, and strafing stepped sideways with
-		a forward stride. Placing them along the velocity makes backwards,
-		strafing and every diagonal fall out of the same code, because a
-		step goes where you are going.
+		There used to be an angular rate limit on top of this, from back
+		when the direction came off raw velocity and a reversal could make
+		it thrash. Smoothing the velocity VECTOR replaced the reason for it
+		and left the limiter behind, where it does real harm: told to go
+		from left to right, it rotates the long way round through FORWARD,
+		so a third of a second into reversing a strafe the gait believes
+		you are walking forwards while you are still moving left at twelve
+		studs a second. The strafe posture collapses and comes back, the
+		stride pulses, and the lean axis swings a full half turn -- which
+		is the hips turning wrong. Going from rest looks fine because it
+		only ever travels ninety degrees and arrives directly.
 
-		Held rather than zeroed when stopped, so the last step of a stop
-		finishes in the direction it was already heading.
+		The smoothed vector already changes smoothly. Its direction flips
+		at the zero crossing, which is precisely when the speed is lowest
+		and the gait is folding away, so the flip costs nothing -- and that
+		is what reversing actually is: slow, stop, go the other way.
+
+		Held when the magnitude is negligible, so a stop finishes in the
+		direction it was going. A stale direction while standing is
+		harmless, because everything keyed off it is scaled by the blend.
 	]]
-	--[[
-		Standing still, the travel direction goes back to the facing.
-
-		Holding the last direction instead leaves it pointing sideways
-		after a strafe, for as long as you stand there. Everything keyed
-		off it then stays keyed off a strafe you finished -- and worse, the
-		next walk starts with the direction still sideways and has to sweep
-		round while the feet step the wrong way.
-
-		The threshold is half MinSpeed rather than zero: the smoothed
-		velocity decays exponentially, so waiting for it to actually reach
-		zero would hold the stale direction for most of a second.
-	]]
-	local wanted = (self.velocity.Magnitude > cfg.MinSpeed * 0.5)
-		and self.velocity.Unit
-		or frame.LookVector
-
-	--[[
-		Turned as an ANGLE, not lerped between two direction vectors.
-
-		Reversing makes the target the exact opposite of the current
-		direction, and a lerp between opposite unit vectors passes through
-		zero length -- so at the halfway point the direction is undefined
-		and thrashes, which is the legs getting stuck when you change
-		direction. Rotating by a bounded angle instead sweeps through the
-		reversal smoothly and can never degenerate.
-
-		Same mistake as the foot aim lerp, in a different place. Any time
-		two unit vectors are interpolated and one can oppose the other, the
-		answer is an angle.
-	]]
-	local from = self.moveDir or wanted
-	local here = math.atan2(-from.X, -from.Z)
-	local there = math.atan2(-wanted.X, -wanted.Z)
-	local diff = (there - here + math.pi) % (math.pi * 2) - math.pi
-	--[[
-		An angular RATE, not "a reversal per TurnTime".
-
-		Phrased as a time-to-complete, a 45 degree input change finished in
-		under two frames -- 1500 degrees a second -- which swung the landing
-		target, four and a half studs out from the hip, at 126 studs per
-		second. A foot's own peak during a swing is about 43. That is the
-		snap when A or D is pressed or released against a held W: both the
-		press and the release are 45 degree changes, so both jump.
-
-		A rate makes small changes quick and large ones proportionate, which
-		is what the parameter was meant to mean all along.
-	]]
-	local most = math.rad(cfg.TurnRate) * dt
-	local yawed = here + math.clamp(diff, -most, most)
-	self.moveDir = Vector3.new(-math.sin(yawed), 0, -math.cos(yawed))
+	if self.velocity.Magnitude > 1e-3 then
+		self.moveDir = self.velocity.Unit
+	end
+	self.moveDir = self.moveDir or frame.LookVector
 	local moveDir = self.moveDir
 
 	--[[
@@ -799,6 +763,7 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		forwards and a diagonal gets a real, clampable angle.
 	]]
 	local off = math.atan2(moveDir:Dot(frame.RightVector), moveDir:Dot(frame.LookVector))
+		* self.blend
 	if off > math.pi * 0.5 then
 		off -= math.pi
 	elseif off < -math.pi * 0.5 then

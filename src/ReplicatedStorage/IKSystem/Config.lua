@@ -571,16 +571,6 @@ Config.Walk = {
 	IdleStepTime = 0.25,
 	-- Seconds for a foot in the air to swing round to its landing heading.
 	FootTurnTime = 0.12,
-	--[[
-		How fast the movement direction follows a change of input, in degrees
-		per second.
-
-		This was once a time-to-complete, which made a 45 degree change
-		finish in under two frames -- 1500 degrees a second. That swung the
-		landing target, nearly five studs out from the hip, at 126 studs per
-		second against a foot's own peak of about 43, and the leg snapped.
-	]]
-	TurnRate = 360,
 
 	-- Past this slope the foot stops trying to lie flat on it, radians.
 	MaxSlopeAngle = math.rad(50),
@@ -649,7 +639,6 @@ Config.WalkRanges = {
 	IdleSlack = { 0.1, 2 },
 	IdleStepTime = { 0.05, 1 },
 	FootTurnTime = { 0.02, 0.5 },
-	TurnRate = { 90, 1080 },
 	MinSpeed = { 0.1, 4 },
 	BlendTime = { 0.02, 0.6 },
 	SpeedSmooth = { 0.01, 0.5 },
