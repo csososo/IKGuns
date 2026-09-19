@@ -646,6 +646,6 @@ Config.WalkRanges = {
 
 -- Writes per-frame IK state to attributes on the character so
 -- tools/DiagnoseMovement.lua can read it. Free to leave off.
-Config.Debug = false
+Config.Debug = true
 
 return Config

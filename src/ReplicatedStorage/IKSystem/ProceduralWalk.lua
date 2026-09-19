@@ -531,6 +531,23 @@ function ProceduralWalk:Update(dt: number)
 	local leftUp = (self.phase % 1) >= duty
 	if self.leftWasUp and not leftUp then
 		self.stride = not self.stride
+
+		--[[
+			Ground truth for the swap, once per stride rather than per
+			frame. Replaying this logic offline says the two strafe
+			directions behave identically, so if the game disagrees the
+			divergence is in an input to it -- most likely `lateral`,
+			which is zero unless the body is actually facing across its
+			own travel.
+		]]
+		if Config.Debug then
+			local swap = self.stride and 1 or -1
+			local amount = cfg.StrafeStagger
+				* (1 - math.clamp(cfg.StrafeCross, 0, 1) * (1 - swap))
+			print(("[Walk] stride flip | lateral %+.2f | Left %+.2f Right %+.2f | front %s")
+				:format(lateral, lateral * -amount, lateral * amount,
+					(lateral * amount >= 0) and "Right" or "Left"))
+		end
 	end
 	self.leftWasUp = leftUp
 
