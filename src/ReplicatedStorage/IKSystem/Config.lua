@@ -307,8 +307,113 @@ Config.Arms = {
 ]]
 Config.RelaxIdleChains = false
 
+--[[
+	Where the pose comes from.
+
+		"animation"  -- authored clips, with FootIK correcting them onto the
+		                ground. CharacterAnimator drives the Animator.
+		"procedural" -- the gait below generates the whole pose. The Animator
+		                is left silent and FootIK is off, because there is no
+		                animation left to correct.
+
+	These are exclusive on purpose. Running both means two systems writing
+	Motor6D.Transform with no agreement about who owns the frame.
+]]
+Config.Gait = "procedural"
+
+
+--[[
+	Procedural walk cycle.
+
+	Every value here is live-tunable from WalkTuner (press ']' in game), and
+	every range that could plausibly want either sign has one, so nothing
+	here depends on guessing which way a rig's axes point.
+
+	The phase advances with DISTANCE, not time: a planted foot travels
+	backwards through stance at exactly the speed the body travels forwards,
+	so it cannot slide at any speed, and cadence rises with speed on its own.
+]]
+Config.Walk = {
+	-- Ground covered by one full stride, in studs.
+	StepLength = 2.6,
+	-- Peak lift of a swinging foot.
+	StepHeight = 0.55,
+	-- Extra spread between the feet, on top of the rig's own hip spacing.
+	StanceWidth = 0.15,
+	--[[
+		Fraction of each foot's cycle spent on the ground.
+
+		Above 0.5 both feet overlap on the ground, which is what makes a walk
+		a walk. Below 0.5 there is a moment with neither foot down, which
+		reads as a run.
+	]]
+	DutyFactor = 0.62,
+	-- Shifts the whole step window forward or back. Posture, not gait.
+	FootAhead = 0.0,
+	-- Ankle joint height above the surface when the foot is flat.
+	AnkleHeight = 0.2,
+
+	-- Vertical bob of the body, twice per stride. Sign flips the phase.
+	BobHeight = 0.07,
+	BobPhase = 0.0,
+	-- Side-to-side weight shift, once per stride.
+	SwayWidth = 0.06,
+	SwayPhase = 0.0,
+	-- Forward lean, degrees, scaled by speed.
+	LeanAngle = 4,
+	-- Torso counter-rotation against the legs, degrees.
+	BodyYaw = 3,
+	-- Shoulder swing, degrees, opposite the leg on the same side.
+	ArmSwing = 12,
+
+	-- Below this ground speed the gait folds back to a neutral stance.
+	MinSpeed = 0.6,
+	-- Seconds to blend the gait in and out of that stance.
+	BlendTime = 0.15,
+	-- Smoothing on the measured speed, so a bump cannot change cadence.
+	SpeedSmooth = 0.1,
+	-- Speed at which LeanAngle reaches full.
+	LeanSpeed = 16,
+
+	-- Past this slope the foot stops trying to lie flat on it, radians.
+	MaxSlopeAngle = math.rad(50),
+	-- Ground probe around the step target.
+	RayUp = 3,
+	RayDown = 5,
+
+	HipJoint = "%sHip",
+	KneeJoint = "%sKnee",
+	AnkleJoint = "%sAnkle",
+	-- Optional. Arm swing is skipped silently if this does not resolve.
+	ShoulderJoint = "%sShoulder",
+}
+
+--[[
+	Ranges the tuner shows, as { min, max }. A value missing from here is
+	still used by the gait, it just does not get a slider.
+]]
+Config.WalkRanges = {
+	StepLength = { 0.5, 6 },
+	StepHeight = { 0, 2 },
+	StanceWidth = { -1, 1 },
+	DutyFactor = { 0.4, 0.9 },
+	FootAhead = { -1.5, 1.5 },
+	AnkleHeight = { 0, 1 },
+	BobHeight = { -0.5, 0.5 },
+	BobPhase = { -1, 1 },
+	SwayWidth = { -0.5, 0.5 },
+	SwayPhase = { -1, 1 },
+	LeanAngle = { -25, 25 },
+	BodyYaw = { -20, 20 },
+	ArmSwing = { -45, 45 },
+	MinSpeed = { 0.1, 4 },
+	BlendTime = { 0.02, 0.6 },
+	SpeedSmooth = { 0.01, 0.5 },
+	LeanSpeed = { 4, 40 },
+}
+
 -- Writes per-frame IK state to attributes on the character so
 -- tools/DiagnoseMovement.lua can read it. Free to leave off.
-Config.Debug = true
+Config.Debug = false
 
 return Config

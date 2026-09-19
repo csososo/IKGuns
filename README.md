@@ -159,6 +159,82 @@ on both `LeftUpperLeg` and `LeftLowerLeg`, and so on), which is exactly the
 alignment constraints need. Add a `HingeConstraint` across a knee's two
 attachments and the solver will obey it.
 
+## Two gaits, and `Config.Gait` picks one
+
+`"animation"` plays authored clips with `FootIK.lua` correcting them onto the
+ground. `"procedural"` hands the whole pose to `ProceduralWalk.lua` and leaves
+the Animator silent. They are exclusive on purpose: running both means two
+systems writing `Motor6D.Transform` with no agreement about who owns the
+frame.
+
+### The twitch, and where it actually was
+
+Five rounds of fixes went into `FootIK.lua` chasing a twitch when walking onto
+a step. Each one found a real bug. None of them was the twitch.
+
+What settled it was `Config.Only = "none"` — and the twitch survived with the
+entire IK system switched off. The clue had been in the logs for a while: the
+correction reaching the rig was about **two hundredths of a stud**, which
+cannot produce something you can see.
+
+It was `CharacterAnimator`. Climbing a step drops the Humanoid into `Freefall`
+for a handful of frames, and with `Fall` and `Jump` unset, `chooseState` fell
+through to `Idle` — so stepping onto anything crossfaded Walk out over 0.2s
+and straight back in. `Config.Only` never touched it, because the switch
+gated aim and arms but had never been extended to cover the legs.
+
+Two things worth keeping from that:
+
+- **A bisect switch that does not cover the suspect is worse than none.** It
+  reads as evidence and is not.
+- **When the magnitude of a system's output cannot explain the symptom, stop
+  tuning it.** That is a measurement, and it outranks any amount of plausible
+  reasoning about the code in front of you.
+
+### Procedural gait
+
+`ProceduralWalk.lua` owns the pose outright, and because nothing else writes
+these joints it writes them directly — no clean-base bookkeeping, no
+composing onto another system's value, no reading its own output back a frame
+later. That entire class of bug is absent by construction.
+
+The phase advances with **distance, not time**. A planted foot travels
+backwards through stance at exactly the speed the body travels forwards, so it
+cannot slide at any speed, and cadence rises with speed without being told to.
+Driving the phase off a clock means choosing a cadence, and then the feet
+skate whenever the real speed disagrees with it.
+
+Everything solves against a pelvis the module computes itself, never the live
+part — the live pelvis is last frame's answer, and feeding it back is what
+makes a procedural leg buzz.
+
+Idle is not a separate path. At blend zero the stride and lift both fall to
+nothing and each foot sits under its own hip, which *is* the standing pose, so
+there is no state to pop between. Stance width and forward bias survive the
+blend, because those are posture and posture does not stop when you do.
+
+### Tuning it
+
+Press `]` in game for **WalkTuner**. It holds the same `Config` table the gait
+reads, so a slider changes the walk on the next frame with no plumbing in
+between. Any range that could plausibly want either sign has one, so no value
+depends on guessing which way this rig's axes point. Typing in a readout box
+is not clamped to the slider's range — the range is a guess at what is useful,
+not a limit on what is legal.
+
+Nothing is saved. **Copy to Output** prints a paste-ready block for
+`Config.Walk`; without that, the next session starts from the file again.
+
+Roughly the order that converges fastest:
+
+1. `StepLength` and `DutyFactor` until the feet stop sliding and the overlap
+   looks right. Above 0.5 both feet share the ground, which is what makes a
+   walk a walk; below 0.5 reads as a run.
+2. `StepHeight` and `FootAhead` for the shape of the step.
+3. `BobHeight` and `SwayWidth` for weight. These are small — a few
+   hundredths — and overdoing them is the fastest way to look like a puppet.
+4. `ArmSwing`, `BodyYaw`, `LeanAngle` last.
+
 ## Legs: foot IK over an authored animation
 
 The animation owns the stride, the timing, the lift and the weight.

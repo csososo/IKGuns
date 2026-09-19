@@ -12,7 +12,10 @@
 ]]
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+
+local Config = require(ReplicatedStorage:WaitForChild("IKSystem").Config)
 
 local IDS = {
 	Idle = 84259856846979,
@@ -97,6 +100,16 @@ local function chooseState(humanoid: Humanoid, speed: number, tracks): string?
 end
 
 local function setup(character: Model)
+	--[[
+		The procedural gait owns the whole pose, so the Animator must stay
+		silent. Left running it fights every joint the gait writes -- and the
+		state machine below was the original twitch: with Fall and Jump unset,
+		a Freefall of a few frames (which is what climbing a step is) resolved
+		to Idle, so stepping onto anything crossfaded Walk out and back.
+	]]
+	if Config.Gait == "procedural" then
+		return
+	end
 	if active then
 		for _, track in active.tracks do
 			track:Stop(0)

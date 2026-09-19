@@ -19,6 +19,7 @@ local Config = require(script.Config)
 local Rig = require(script.Rig)
 local Aim = require(script.Aim)
 local FootIK = require(script.FootIK)
+local ProceduralWalk = require(script.ProceduralWalk)
 local Util = require(script.Util)
 
 local IKSystem = {}
@@ -36,7 +37,18 @@ function IKSystem.new(character: Model)
 	self.character = character
 	self.rig = rig
 	self.aim = Aim.new(rig)
-	self.legs = Config.isOn("legs") and FootIK.new(rig) or nil
+	--[[
+		Exactly one of these owns the leg joints. Running both means two
+		systems writing Motor6D.Transform with no agreement about who owns the
+		frame, and the loser is whichever wrote first.
+	]]
+	if Config.isOn("legs") then
+		if Config.Gait == "procedural" then
+			self.walk = ProceduralWalk.new(rig)
+		else
+			self.legs = FootIK.new(rig)
+		end
+	end
 	self.armWeight = { Left = 0, Right = 0 }
 
 	return self
@@ -114,12 +126,17 @@ function IKSystem:UpdateLate(dt: number)
 	if not self.character.Parent then
 		return
 	end
-	if self.legs then
+	if self.walk then
+		self.walk:Update(dt)
+	elseif self.legs then
 		self.legs:Update(dt)
 	end
 end
 
 function IKSystem:Destroy()
+	if self.walk then
+		self.walk:Reset()
+	end
 	self.aim:Reset()
 	self.rig:Destroy()
 end
