@@ -203,8 +203,16 @@ doing — it let a foot sit 2.07 studs out from a hip 2.2 above it, which is
 3.02 away on a leg about 2.3 long. The solver clamped, the knee locked
 straight, and the trigger that should have stepped never fired because the
 flat measurement said everything was fine. One mistake, producing both a leg
-extended too far and a leg stuck. How far across the ground a foot may be is
-whatever is left once the drop is accounted for: `sqrt(limit² - drop²)`.
+extended too far and a leg stuck.
+
+Reach belongs in the decision to **step**, though, not in dragging a foot the
+gait has correctly placed. Clamping the position to what the leg can reach is
+correct and useless: the horizontal budget is `sqrt(reach² - drop²)`, and with
+the hip nearly a leg's length above the ground that collapses towards nothing,
+pinning each foot under its own hip so the legs only go up and down. `TwoBone`
+already handles an unreachable target by landing the foot short, so the pose is
+never impossible — only straight-legged at the extremes of a stride the rig is
+too short for.
 
 When a planted foot runs out of reach — a reversal, a hard turn — it
 **steps early rather than sliding**. Dragging the anchor onto the reach

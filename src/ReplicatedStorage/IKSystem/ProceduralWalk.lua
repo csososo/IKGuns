@@ -683,17 +683,21 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		and being dragged is what actually happens to you.
 	]]
 	--[[
-		How far ACROSS the ground the foot may be is whatever is left of the
-		reach once the drop to it is accounted for: sqrt(limit^2 - drop^2).
-		Clamping the flat distance to the full reach instead asks for a leg
-		longer than the rig has, every time.
+		Deliberately no position clamp here.
+
+		Clamping the foot to what the leg can reach is correct and useless:
+		the horizontal budget is whatever is left after the drop to the
+		floor, sqrt(reach^2 - drop^2), and with the hip nearly a leg's
+		length above the ground that collapses towards nothing. It pinned
+		each foot under its own hip, so the legs stopped stepping and only
+		went up and down.
+
+		TwoBone already handles a target it cannot reach -- it clamps the
+		distance and the foot simply lands short -- so the pose is never
+		impossible, only straight-legged at the extremes of a stride the
+		rig is too short for. Reach belongs in the decision to STEP, above,
+		not in dragging a foot the gait has correctly placed.
 	]]
-	local drop = place.Y - hipPos.Y
-	local flat = Vector3.new(place.X - hipPos.X, 0, place.Z - hipPos.Z)
-	local across = math.sqrt(math.max(limit * limit - drop * drop, 0))
-	if flat.Magnitude > across and flat.Magnitude > 1e-4 then
-		place = Vector3.new(hipPos.X, place.Y, hipPos.Z) + flat.Unit * across
-	end
 
 	--[[
 		Nothing moves a foot faster than a foot can move.
