@@ -196,7 +196,17 @@ Swing interpolates from the lift-off anchor to a predicted landing. The body
 covers `(1-duty)/duty` step lengths during one swing, a ratio that does not
 depend on speed, and the remaining travel is recomputed every frame — so
 turning mid-stride redirects the step instead of planting it where you used to
-be going. When a planted foot runs out of reach — a reversal, a hard turn — it
+be going. **Reach is measured in three dimensions.** The leg spans the drop to the
+floor as well as the distance across it, so comparing a horizontal offset
+against a fraction of the leg's total length ignores most of what the leg is
+doing — it let a foot sit 2.07 studs out from a hip 2.2 above it, which is
+3.02 away on a leg about 2.3 long. The solver clamped, the knee locked
+straight, and the trigger that should have stepped never fired because the
+flat measurement said everything was fine. One mistake, producing both a leg
+extended too far and a leg stuck. How far across the ground a foot may be is
+whatever is left once the drop is accounted for: `sqrt(limit² - drop²)`.
+
+When a planted foot runs out of reach — a reversal, a hard turn — it
 **steps early rather than sliding**. Dragging the anchor onto the reach
 circle bounds the problem and looks terrible: the circle moves with the hip,
 so every frame re-clamps and the foot skates along at arm's length. Jumping
