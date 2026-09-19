@@ -36,7 +36,7 @@ function IKSystem.new(character: Model)
 	self.character = character
 	self.rig = rig
 	self.aim = Aim.new(rig)
-	self.legs = FootIK.new(rig)
+	self.legs = Config.isOn("legs") and FootIK.new(rig) or nil
 	self.armWeight = { Left = 0, Right = 0 }
 
 	return self
@@ -114,7 +114,9 @@ function IKSystem:UpdateLate(dt: number)
 	if not self.character.Parent then
 		return
 	end
-	self.legs:Update(dt)
+	if self.legs then
+		self.legs:Update(dt)
+	end
 end
 
 function IKSystem:Destroy()

@@ -23,7 +23,7 @@ local Config = {}
 		"all"   -- normal operation
 		"none"  -- build nothing, write nothing. Equivalent to the controller
 		           being disabled, but with the script still running.
-		"legs"  -- procedural legs only
+		"legs"  -- foot IK only
 		"aim"   -- torso twist and head look only
 		"arms"  -- hand IK only
 
