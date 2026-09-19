@@ -335,11 +335,11 @@ Config.Gait = "procedural"
 ]]
 Config.Walk = {
 	-- Ground covered by one full stride, in studs.
-	StepLength = 2.6,
+	StepLength = 2.776,
 	-- Peak lift of a swinging foot.
-	StepHeight = 0.55,
+	StepHeight = 0.621,
 	-- Extra spread between the feet, on top of the rig's own hip spacing.
-	StanceWidth = 0.15,
+	StanceWidth = 0.224,
 	--[[
 		Fraction of each foot's cycle spent on the ground.
 
@@ -347,33 +347,33 @@ Config.Walk = {
 		a walk. Below 0.5 there is a moment with neither foot down, which
 		reads as a run.
 	]]
-	DutyFactor = 0.62,
+	DutyFactor = 0.439,
 	-- Shifts the whole step window forward or back. Posture, not gait.
-	FootAhead = 0.0,
+	FootAhead = -0.103,
 	-- Ankle joint height above the surface when the foot is flat.
-	AnkleHeight = 0.2,
+	AnkleHeight = 0.216,
 
 	-- Vertical bob of the body, twice per stride. Sign flips the phase.
-	BobHeight = 0.07,
-	BobPhase = 0.0,
+	BobHeight = 0.043,
+	BobPhase = -0.603,
 	-- Side-to-side weight shift, once per stride.
-	SwayWidth = 0.06,
+	SwayWidth = 0.026,
 	SwayPhase = 0.0,
 	-- Forward lean, degrees, scaled by speed.
-	LeanAngle = 4,
+	LeanAngle = -7.328,
 	-- Torso counter-rotation against the legs, degrees.
-	BodyYaw = 3,
+	BodyYaw = -11.034,
 	-- Shoulder swing, degrees, opposite the leg on the same side.
-	ArmSwing = 12,
+	ArmSwing = 27.931,
 
 	-- Below this ground speed the gait folds back to a neutral stance.
 	MinSpeed = 0.6,
 	-- Seconds to blend the gait in and out of that stance.
 	BlendTime = 0.15,
 	-- Smoothing on the measured speed, so a bump cannot change cadence.
-	SpeedSmooth = 0.1,
+	SpeedSmooth = 0.166,
 	-- Speed at which LeanAngle reaches full.
-	LeanSpeed = 16,
+	LeanSpeed = 27.897,
 
 	-- Past this slope the foot stops trying to lie flat on it, radians.
 	MaxSlopeAngle = math.rad(50),

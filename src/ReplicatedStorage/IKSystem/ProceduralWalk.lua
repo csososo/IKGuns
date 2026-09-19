@@ -44,14 +44,23 @@ function ProceduralWalk.new(rig)
 	self.speed = 0
 	self:_measure()
 
-	local ready = {}
+	--[[
+		Say whether the shoulders resolved.
+
+		Arm swing is optional and skips silently when the joint name does not
+		match, which is indistinguishable from a swing angle set too low --
+		you would sit there dragging the slider wondering why nothing moves.
+	]]
+	local ready, arms = {}, 0
 	for _, side in ORDER do
 		if self.legs[side] then
 			table.insert(ready, side)
+			arms += self.legs[side].shoulder and 1 or 0
 		end
 	end
-	print(("[ProceduralWalk] %d legs ready: %s"):format(#ready,
-		#ready > 0 and table.concat(ready, ", ") or "NONE"))
+	print(("[ProceduralWalk] %d legs ready: %s | %d/%d shoulders for arm swing (%s)")
+		:format(#ready, #ready > 0 and table.concat(ready, ", ") or "NONE",
+			arms, #ready, Config.Walk.ShoulderJoint))
 
 	return self
 end
