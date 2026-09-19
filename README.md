@@ -257,6 +257,19 @@ to meet the heading it is about to land on. At low blend it eases back to
 facing anyway, so turning on the spot brings the feet round rather than
 leaving them splayed.
 
+**The body's side-to-side motion mirrors when the right leg leads.** Sway,
+pelvis yaw and pelvic list are keyed to `self.phase`, which is the *left*
+leg's cycle because Left holds the zero offset. Walking forward that is
+harmless — the body just alternates. Strafing it is not: which leg leads
+depends on which way you are going, so one direction has the weight shift
+aligned with the lead foot and the other has it half a cycle out, aligned
+with the trailing foot. That is strafing one way visibly moving the body more
+than the other. They are sinusoids, so negating one shifts it half a cycle,
+which is exactly the correction; `1 - |lateral| + lateral` is 1 forward, 1
+strafing right and -1 strafing left, passing smoothly through the diagonals.
+Bob is excluded on purpose — it runs at twice the frequency, once per
+footfall, so half a cycle leaves it unchanged.
+
 **Strafing gets its own posture.** Side-stepping puts both feet on one line
 across the body, where they read as a single mass with nothing to clear each
 other by. So the feet stagger fore and aft — `StrafeStagger` puts the foot on

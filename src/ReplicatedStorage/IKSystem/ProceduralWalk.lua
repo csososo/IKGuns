@@ -346,7 +346,8 @@ function ProceduralWalk:Update(dt: number)
 	local scaled = cfg.StepLength
 		* math.clamp(pace ^ cfg.StrideExponent, cfg.MinStrideScale, 1.5)
 
-	local sideways = math.abs(moveDir:Dot(frame.RightVector))
+	local lateral = moveDir:Dot(frame.RightVector)
+	local sideways = math.abs(lateral)
 	local cap = math.max(self.separation or 0, 0.1) * cfg.SideStepRatio
 	local stepLength = math.max(
 		scaled * (1 - sideways) + math.min(scaled, cap) * sideways, 0.1)
@@ -368,10 +369,35 @@ function ProceduralWalk:Update(dt: number)
 	self.phase = (self.phase
 		+ (self.cadence or 0) * (moving and 1 or self.blend) * dt) % 1
 
+	--[[
+		Mirror the body's side-to-side motion when the RIGHT leg leads.
+
+		The phase this is all keyed to is the left leg's, because Left has
+		the zero offset. Walking forward that is harmless -- the body just
+		alternates. Strafing it is not: which leg leads depends on which
+		way you are going, so one direction has the weight shift aligned
+		with the lead foot and the other has it aligned with the trailing
+		foot, half a cycle out. That is strafing one way visibly moving the
+		body more than the other.
+
+		These are all sinusoids, so negating one shifts it by half a cycle,
+		which is exactly the correction. The factor is 1 walking forward,
+		1 strafing right and -1 strafing left, and passes smoothly through
+		the diagonals rather than switching, so nothing pops at the point
+		where travel stops being lateral.
+
+		Bob is left out on purpose: it runs at twice the frequency, once
+		per footfall, so half a cycle leaves it unchanged and it is already
+		the same whichever leg leads.
+	]]
 	local turns = math.pi * 2
+	local mirror = 1 - sideways + lateral
+
 	local bob = math.sin((self.phase * 2 + cfg.BobPhase) * turns) * cfg.BobHeight * self.blend
-	local sway = math.sin((self.phase + cfg.SwayPhase) * turns) * cfg.SwayWidth * self.blend
-	local yaw = math.sin((self.phase + cfg.SwayPhase) * turns) * math.rad(cfg.BodyYaw) * self.blend
+	local sway = math.sin((self.phase + cfg.SwayPhase) * turns)
+		* cfg.SwayWidth * self.blend * mirror
+	local yaw = math.sin((self.phase + cfg.SwayPhase) * turns)
+		* math.rad(cfg.BodyYaw) * self.blend * mirror
 	local lean = math.rad(cfg.LeanAngle) * self.blend
 		* math.clamp(self.speed / math.max(cfg.LeanSpeed, 0.1), 0, 1)
 
@@ -403,7 +429,7 @@ function ProceduralWalk:Update(dt: number)
 		the whole pelvis reads as a plank the legs are bolted to.
 	]]
 	local list = math.sin((self.phase + cfg.PelvisListPhase) * turns)
-		* math.rad(cfg.PelvisList) * self.blend
+		* math.rad(cfg.PelvisList) * self.blend * mirror
 
 	local op = CFrame.new(Vector3.yAxis * bob + frame.RightVector * sway)
 	if math.abs(list) > 1e-5 then
