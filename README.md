@@ -272,6 +272,22 @@ all vanish. Sliding the phase keeps full amplitude the whole way round. Bob is
 excluded on purpose — it runs at twice the frequency, once per footfall, so
 half a cycle leaves it unchanged.
 
+**How sideways travel is comes from the smoothed velocity, not the unit
+direction.** A unit direction carries no memory of having passed through zero,
+so reversing flips it in a single frame. That was meant to be harmless because
+the gait would be folding to idle at the crossing — it isn't: the smoothed
+speed drops below `MinSpeed` for exactly *one frame* of a reversal, so the
+blend never falls and the flip lands at full strength, jumping the body phase
+half a cycle and the stagger end for end. The velocity component passes
+smoothly through zero instead, fading the strafe posture out and back, which
+is what reversing actually looks like.
+
+For the same reason the swing's travel term is **the velocity over the time
+left in the swing**, not a distance along the unit direction. Identical while
+speed is steady — speed × that time *is* that distance — but it shrinks to
+nothing through a reversal rather than flipping the landing to the far side of
+the body.
+
 **Both strafe stagger terms are signed by travel**, not merely scaled by how
 sideways it is. `StrafeCross` used the unsigned amount at first, so it added
 to `StrafeStagger` going one way and cancelled it going the other — 1.20 studs

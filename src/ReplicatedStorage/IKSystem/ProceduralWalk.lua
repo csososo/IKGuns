@@ -346,8 +346,27 @@ function ProceduralWalk:Update(dt: number)
 	local scaled = cfg.StepLength
 		* math.clamp(pace ^ cfg.StrideExponent, cfg.MinStrideScale, 1.5)
 
-	local lateral = moveDir:Dot(frame.RightVector)
+	--[[
+		How sideways the travel is, taken from the smoothed VELOCITY rather
+		than from the unit direction.
+
+		A unit direction carries no memory of having passed through zero:
+		reversing flips it in a single frame. That was supposed to be
+		harmless because the gait would be folding to idle at the crossing,
+		but it is not -- the smoothed speed is below MinSpeed for exactly
+		one frame of a reversal, so the blend never drops and the flip
+		happens at full strength. Everything keyed to it jumps: the body
+		phase by half a cycle, the stagger end for end.
+
+		The velocity component passes smoothly through zero instead, so a
+		reversal fades the strafe posture out and back rather than
+		inverting it, which is what reversing actually looks like. It also
+		means a slow side-step gets proportionately less of it.
+	]]
+	local lateral = math.clamp(
+		self.velocity:Dot(frame.RightVector) / math.max(cfg.StrideSpeedRef, 0.1), -1, 1)
 	local sideways = math.abs(lateral)
+	self.lateral = lateral
 	local cap = math.max(self.separation or 0, 0.1) * cfg.SideStepRatio
 	local stepLength = math.max(
 		scaled * (1 - sideways) + math.min(scaled, cap) * sideways, 0.1)
@@ -584,7 +603,7 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		after a side-step and whatever comes next starts from a crooked
 		stance.
 	]]
-	local lateral = moveDir:Dot(frame.RightVector) * self.blend
+	local lateral = (self.lateral or 0) * self.blend
 	local sideways = math.abs(lateral)
 	local lead = side.sign * lateral
 
@@ -677,8 +696,16 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 			At t=1 the remaining travel is zero, so the target is simply half
 			a stride ahead of the hip: a heel strike.
 		]]
-		local remaining = stepLength * (1 - duty) / duty * (1 - t)
-		local landing = neutral + moveDir * (remaining + stepLength * 0.5)
+		--[[
+			The travel term is the VELOCITY over the time left in the
+			swing, not a distance along the unit direction. Identical
+			while speed is steady -- speed times that time IS that
+			distance -- but it shrinks to nothing through a reversal
+			instead of flipping the landing end for end, which is what
+			left the legs chasing a target on the wrong side of the body.
+		]]
+		local left = (1 - t) * (1 - duty) / math.max(self.cadence, 1e-3)
+		local landing = neutral + self.velocity * left + moveDir * (stepLength * 0.5)
 
 		leg.from = leg.from or neutral
 		place = leg.from:Lerp(landing, t * t * (3 - 2 * t))
