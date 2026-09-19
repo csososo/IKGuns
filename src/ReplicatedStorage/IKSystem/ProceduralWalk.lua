@@ -128,8 +128,6 @@ function ProceduralWalk:_measure()
 			shift = 0,
 			-- True while this foot is turning under itself to catch up.
 			pivoting = false,
-			-- Set when the other foot had to step around this one.
-			crowded = false,
 			-- Last frame's world position, for the foot speed ceiling.
 			last = nil,
 			-- The heading this foot landed on. Held for as long as it is
@@ -583,13 +581,10 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 	local other = self.legs[side.other]
 	if not swinging and leg.anchor and not (other and other.airborne) then
 		local held = Vector3.new(leg.anchor.X - hipPos.X, 0, leg.anchor.Z - hipPos.Z)
-		if held.Magnitude > limit or leg.crowded then
+		if held.Magnitude > limit then
 			leg.shift = (leg.shift + duty - p) % 1
 			p, swinging = duty, true
 		end
-	end
-	if swinging then
-		leg.crowded = false
 	end
 
 	--[[
@@ -624,39 +619,6 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		]]
 		local remaining = stepLength * (1 - duty) / duty * (1 - t)
 		local landing = neutral + moveDir * (remaining + stepLength * 0.5)
-
-		--[[
-			Do not land on the wrong side of the foot already down.
-
-			Turning while walking swings the body between a plant and the
-			next landing, and the target can end up across the standing
-			leg. Measured against the PLANTED FOOT, not the body's midline:
-			an earlier version clamped against the pelvis, which moves, so
-			the constrained foot held a fixed offset from a moving body and
-			slid instead of stepping. The planted foot is fixed in the
-			world, so a clamp against it is fixed too.
-
-			Only the sideways part is limited, so the step keeps its full
-			reach along travel.
-		]]
-		if other and other.anchor and not other.airborne then
-			local rel = landing - other.anchor
-			local gap = rel:Dot(frame.RightVector)
-			local least = side.sign * cfg.MinFootGap
-			local held = (side.sign > 0) and math.max(gap, least) or math.min(gap, least)
-			if math.abs(held - gap) > 1e-5 then
-				landing += frame.RightVector * (held - gap)
-				--[[
-					Having to shove a landing sideways means the standing
-					foot is in the way, not that this one aimed badly. It
-					gets to step as soon as this foot is down, rather than
-					waiting out a stance it is now badly placed for.
-				]]
-				if math.abs(held - gap) > cfg.MinFootGap then
-					other.crowded = true
-				end
-			end
-		end
 
 		leg.from = leg.from or neutral
 		place = leg.from:Lerp(landing, t * t * (3 - 2 * t))
@@ -855,7 +817,29 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 	local target = Vector3.new(plant.X,
 		(surface or floorY) + cfg.AnkleHeight + lift + pivotLift, plant.Z)
 
-	local upperCF, lowerCF, tipPos = TwoBone.solve(hipPos, target, leg.bone, frame.LookVector)
+	--[[
+		The knee points where the FOOT points, not where the body faces.
+
+		This is the leg deforming on a turn. A planted foot holds the
+		heading it landed on, by design -- but the pole handed to the
+		solver was the body's facing, so as the body turned, the knee plane
+		rotated with it while the foot stayed put. The shin's roll and the
+		foot's heading then disagreed by up to MaxFootLag, and since the
+		ankle is written to an orientation of its own regardless of what
+		the shin is doing, that whole mismatch landed in the ankle joint as
+		a visible twist.
+
+		Anatomically it is the wrong way round anyway: your knee tracks
+		your foot, which is exactly why a planted foot has to pivot before
+		you can turn much further.
+	]]
+	local pole = frame.LookVector:Lerp(leg.footRot.LookVector,
+		math.clamp(cfg.KneeFollowsFoot, 0, 1))
+	if pole.Magnitude < 1e-3 then
+		pole = frame.LookVector
+	end
+
+	local upperCF, lowerCF, tipPos = TwoBone.solve(hipPos, target, leg.bone, pole.Unit)
 	if not upperCF then
 		return
 	end

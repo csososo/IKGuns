@@ -257,20 +257,6 @@ to meet the heading it is about to land on. At low blend it eases back to
 facing anyway, so turning on the spot brings the feet round rather than
 leaving them splayed.
 
-**A landing may not cross the foot already down.** Turning while walking
-swings the body between a plant and the next landing, and the target can end
-up across the standing leg. The clamp is measured against the **planted
-foot**, not the body's midline — an earlier version used the pelvis, which
-moves, so the constrained foot held a fixed offset from a moving body and
-slid instead of stepping. A planted foot is fixed in the world, so a clamp
-against it is fixed too, and only the sideways part is limited so the step
-keeps its reach along travel.
-
-When a landing has to be shoved further than `MinFootGap` to clear, that is
-the *standing* foot being in the way rather than this one aiming badly, so it
-steps as soon as this foot is down instead of seeing out a stance it is now
-badly placed for.
-
 **Side-steps are shorter, and have to be.** The feet are held apart *across*
 the body, so sideways travel runs the stride along the very axis keeping them
 apart. A step longer than twice the separation lands the trailing foot past
@@ -295,6 +281,15 @@ body frame**. Turning the camera moves nothing. Once the body has moved or
 turned too far to stand in, that frame eases across and the feet shuffle with
 it. For the same reason a planted foot never rotates except during a shuffle
 or past the `MaxFootLag` pivot.
+
+**The knee points where the foot points.** A planted foot holds the heading it
+landed on, so handing the solver the body's facing as its pole means the knee
+plane turns with the body while the foot stays put. Shin and foot then
+disagree by up to `MaxFootLag`, and because the ankle is written to an
+orientation of its own regardless of the shin, that whole mismatch lands in
+the ankle joint as a visible twist — the leg deforming when you turn while
+walking. Anatomically it is the wrong way round anyway: your knee tracks your
+foot, which is why a planted foot must pivot before you can turn much further.
 
 Foot heading is an **angle off the facing**, clamped by `MaxFootYaw`, not a
 lerp between two direction vectors — that collapses to zero length when

@@ -486,6 +486,17 @@ Config.Walk = {
 	]]
 	MaxFootLag = 35,
 	--[[
+		How far the knee follows the foot's heading rather than the body's
+		facing. 1 is anatomical -- your knee tracks your foot.
+
+		At 0 the knee plane turns with the body while a planted foot holds
+		its landing heading, so the shin and the foot disagree by up to
+		MaxFootLag. The ankle is written to its own orientation regardless of
+		the shin, so all of that mismatch shows up as a twist in the ankle
+		joint -- the leg deforming when you turn while walking.
+	]]
+	KneeFollowsFoot = 1,
+	--[[
 		How fast a planted foot pivots to catch up, degrees per second.
 
 		This used to happen in a single frame, which is the leg snapping when
@@ -504,22 +515,6 @@ Config.Walk = {
 		being clamped still.
 	]]
 	SideStepRatio = 1.6,
-
-	--[[
-		Least sideways clearance between a landing foot and the one already
-		down, in studs.
-
-		Measured against the PLANTED FOOT rather than the body's midline. An
-		earlier version clamped against the pelvis, which moves, so the
-		constrained foot held a fixed offset from a moving body and slid
-		instead of stepping. The planted foot is fixed in the world, so a
-		clamp against it is fixed too.
-
-		When a landing has to be shoved further than this to clear, the
-		standing foot is treated as being in the way and steps early rather
-		than seeing out a stance it is now badly placed for.
-	]]
-	MinFootGap = 0.45,
 
 	--[[
 		How far a foot may drift from under its hip while standing before it
@@ -611,9 +606,9 @@ Config.WalkRanges = {
 	FootTurnToMove = { 0, 1 },
 	MaxFootYaw = { 0, 60 },
 	MaxFootLag = { 5, 90 },
+	KneeFollowsFoot = { 0, 1 },
 	PivotRate = { 45, 720 },
 	SideStepRatio = { 0.8, 3 },
-	MinFootGap = { 0, 1.5 },
 	FootSpeedRatio = { 1.5, 8 },
 	MinFootSpeed = { 2, 30 },
 	IdleSlack = { 0.1, 2 },
