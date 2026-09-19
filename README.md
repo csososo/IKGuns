@@ -178,6 +178,17 @@ than the flat floor the animation assumes, which comes from the root part and
 Setting an absolute foot height instead pins the foot to the floor, cancels
 the animation's own vertical motion, and straightens the legs out.
 
+The correction is smoothed **only as far as the foot is planted**. Smoothing
+exists to stop a weight-bearing foot snapping when the ground under it
+changes; a foot in the air applies none of its correction, so there is
+nothing there to snap, and lagging it does real harm — the raycast under a
+swinging foot reads whatever it is passing over, and the smoothing carries
+that stale value into touchdown, where the weight ramps in on top of it. A
+foot crossing a step in mid-air would land still holding a tenth of a stud of
+correction for a surface it only flew over. Tracking the ground exactly while
+airborne means the correction arrives at touchdown already right, with
+nothing left to unwind.
+
 That reference is taken **live from the root, never smoothed and never
 raycast**. Power IK does the same: its ground plane is a bone, normally the
 root, and what gets smoothed is the foot effector. Smoothing the reference

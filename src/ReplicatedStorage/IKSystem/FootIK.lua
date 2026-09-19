@@ -243,17 +243,18 @@ function FootIK:Update(dt: number)
 	end
 
 	--[[
-		Measure both legs before weighing either.
+		Read both legs before solving either.
 
 		How planted a foot is comes from comparing it against the other foot,
-		so neither answer exists until both have been read.
+		so neither answer exists until both have been read -- and the whole
+		correction hangs off that answer, down to how hard it is smoothed.
 	]]
 	local datum
 	for _, side in SIDES do
 		local leg = self.legs[side]
 		if leg then
 			leg.wanted = nil
-			self:_measureLeg(leg, floorY, params)
+			self:_readPose(leg)
 			if leg.wanted and (not datum or leg.bodyY < datum) then
 				datum = leg.bodyY
 			end
@@ -269,7 +270,7 @@ function FootIK:Update(dt: number)
 	for _, side in SIDES do
 		local leg = self.legs[side]
 		if leg and leg.wanted then
-			self:_weighLeg(leg, datum, grounded)
+			self:_solveLeg(leg, floorY, datum, grounded, params)
 		end
 	end
 
@@ -399,54 +400,27 @@ function FootIK:_sampleGround(centre: Vector3, params: RaycastParams): (number?,
 end
 
 --[[
-	Read where the animation has put this foot, and how far its ground differs
-	from the reference. Nothing is weighed here: that needs both legs.
+	Where the animation has put this foot, relative to the body.
+
+	Nothing here touches the ground, because nothing downstream can start
+	until BOTH feet have been read: how planted one foot is, is a statement
+	about the other.
 ]]
-function FootIK:_measureLeg(leg, floorY: number, params: RaycastParams)
-	local cfg = Config.FootIK
+function FootIK:_readPose(leg)
 	local animCF = self:_animatedAnkle(leg)
 	leg.animCF = animCF
 
 	--[[
-		The animated foot's height relative to the BODY.
-
 		This is the animation's own foot curve, recovered: a function of where
 		the clip is in its cycle and of nothing else. No terrain can move it.
 	]]
 	local root = self.rig.parts.Root
 	leg.bodyY = root and (animCF.Position.Y - root.Position.Y) or 0
-
-	local hit, normal = self:_sampleGround(animCF.Position, params)
-	if not hit then
-		leg.delta = 0
-		return
-	end
-
-	--[[
-		How far this foot's ground differs from the assumed floor. Zero on
-		level ground, positive on a step up, negative over a drop. Note what
-		it does not depend on: where the foot currently is.
-	]]
-	local raw = math.clamp(hit - floorY, -cfg.MaxStepDown, cfg.MaxStepUp)
-
-	--[[
-		Smooth both the correction and its weight. Stepping onto or off a
-		ledge changes the raycast result discontinuously, and applying that
-		jump straight to the joints is what makes a leg snap for a frame.
-	]]
-	-- Rate-limit first, then smooth: a surface that changes faster than the
-	-- smoothing can absorb would otherwise still arrive as a jolt.
-	local maxStep = cfg.MaxCorrectionRate * self.dt
-	local limited = math.clamp(raw, leg.delta - maxStep, leg.delta + maxStep)
-	leg.delta = Util.damp(leg.delta, limited, cfg.SmoothTime, self.dt)
-
-	leg.normal = normal
-	leg.raw = raw
-	leg.wanted = true
+	leg.wanted = animCF ~= nil
 end
 
 --[[
-	How much of this leg's correction to apply.
+	The correction for this leg, and how much of it to apply.
 
 	Whether a foot is planted or swinging is a fact about the ANIMATION, and
 	the reference implementations all treat it as one: Unity and Unreal bake a
@@ -467,10 +441,46 @@ end
 	lifting it. Measuring against a smoothed reference plane only delays that,
 	because the plane climbs the step too.
 ]]
-function FootIK:_weighLeg(leg, datum: number?, grounded: boolean)
+function FootIK:_solveLeg(leg, floorY: number, datum: number?, grounded: boolean, params: RaycastParams)
 	local cfg = Config.FootIK
 	local lift = math.max(0, leg.bodyY - (datum or leg.bodyY) - cfg.PlantSlack)
 	local plant = 1 - math.clamp(lift / math.max(cfg.LiftThreshold, 1e-4), 0, 1)
+	leg.plant = plant
+	leg.lift = lift
+
+	local hit, normal = self:_sampleGround(leg.animCF.Position, params)
+	leg.normal = normal or Vector3.yAxis
+	leg.raw = hit and math.clamp(hit - floorY, -cfg.MaxStepDown, cfg.MaxStepUp) or 0
+
+	--[[
+		Smooth the correction only as far as the foot is planted.
+
+		Smoothing is here to stop a foot bearing weight from snapping when
+		the ground under it changes. A foot in the air applies none of its
+		correction, so there is nothing to snap -- and lagging it there does
+		real harm: the raycast under a swinging foot reads whatever it
+		happens to be passing over, and the smoothing then carries that stale
+		value into touchdown, where the weight ramps in on top of it.
+
+		That is the last of the twitch. A foot would cross a step in mid-air,
+		pick up a correction for a surface it was only flying over, and land
+		still holding a tenth of a stud of it.
+
+		So track the ground exactly while airborne and smooth only as weight
+		comes onto the foot. The correction then arrives at touchdown already
+		matching the ground the foot is actually landing on, with nothing
+		left to unwind.
+	]]
+	local smoothing = cfg.SmoothTime * plant
+	if smoothing <= 1e-4 then
+		leg.delta = leg.raw
+	else
+		-- Rate-limit first, then smooth: a surface that changes faster than
+		-- the smoothing can absorb would otherwise still arrive as a jolt.
+		local maxStep = cfg.MaxCorrectionRate * self.dt
+		local limited = math.clamp(leg.raw, leg.delta - maxStep, leg.delta + maxStep)
+		leg.delta = Util.damp(leg.delta, limited, smoothing, self.dt)
+	end
 
 	--[[
 		Ignore small differences, and ramp in over a step-sized range rather
@@ -498,8 +508,6 @@ function FootIK:_weighLeg(leg, datum: number?, grounded: boolean)
 	end
 
 	leg.weight = Util.damp(leg.weight, wantWeight, cfg.BlendTime, self.dt)
-	leg.plant = plant
-	leg.lift = lift
 end
 
 function FootIK:_apply(leg, frame: CFrame)
