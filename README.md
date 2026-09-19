@@ -206,6 +206,13 @@ happens; everything after is an ordinary swing with a real arc and a real
 plant. The resulting phase shift unwinds over the following strides, in the
 air only, so the legs come back into alternation on their own.
 
+Speed and direction both come from a **smoothed velocity vector**, never from
+a separately smoothed magnitude. Held alternately, A and D cancel — you go
+nowhere — but `|velocity|` never drops, so a gait reading the magnitude sees a
+sprint and runs full strides back and forth over the same patch of ground.
+Smoothing the vector cancels the way the movement does. Straight-line movement
+is unaffected: with a steady direction the two are the same thing.
+
 **Phase advances with distance, not time**, so cadence rises with speed on its
 own. Driving it off a clock means choosing a cadence, and then the feet skate
 whenever the real speed disagrees with it. It keeps advancing while the gait

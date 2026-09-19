@@ -46,6 +46,7 @@ function ProceduralWalk.new(rig)
 	self.blend = 0
 	self.speed = 0
 	self.cadence = 0
+	self.velocity = nil
 	self:_measure()
 
 	--[[
@@ -247,9 +248,27 @@ function ProceduralWalk:Update(dt: number)
 
 	self.dt = dt
 
+	--[[
+		Smooth the velocity VECTOR, and take both speed and direction from
+		it. Smoothing the magnitude separately is what makes mashing A and D
+		look silly.
+
+		Held alternately, those cancel: you go nowhere. But |velocity| never
+		drops -- you are always moving hard at 16 studs a second, just not in
+		any direction for long -- so the gait reads a sprint and runs full
+		strides back and forth over the same patch of ground. Smoothing the
+		vector cancels the way the movement does, the speed falls to
+		something small, and the gait settles into shuffles, which is what
+		someone twitching side to side actually does.
+
+		Straight-line movement is unaffected: with a steady direction,
+		smoothing the vector and smoothing its length are the same thing.
+	]]
 	local velocity = root.AssemblyLinearVelocity
 	local travel = Vector3.new(velocity.X, 0, velocity.Z)
-	self.speed = Util.damp(self.speed, travel.Magnitude, cfg.SpeedSmooth, dt)
+	self.velocity = (self.velocity or travel):Lerp(travel,
+		1 - math.exp(-dt / math.max(cfg.SpeedSmooth, 1e-3)))
+	self.speed = self.velocity.Magnitude
 
 	local moving = self.speed > cfg.MinSpeed
 	self.blend = Util.damp(self.blend, moving and 1 or 0, cfg.BlendTime, dt)
@@ -268,7 +287,7 @@ function ProceduralWalk:Update(dt: number)
 		Held rather than zeroed when stopped, so the last step of a stop
 		finishes in the direction it was already heading.
 	]]
-	local wanted = travel.Magnitude > 1e-3 and travel.Unit
+	local wanted = self.velocity.Magnitude > 1e-3 and self.velocity.Unit
 		or self.moveDir or frame.LookVector
 
 	--[[
