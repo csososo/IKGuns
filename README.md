@@ -209,7 +209,20 @@ Swing interpolates from the lift-off anchor to a predicted landing. The body
 covers `(1-duty)/duty` step lengths during one swing, a ratio that does not
 depend on speed, and the remaining travel is recomputed every frame — so
 turning mid-stride redirects the step instead of planting it where you used to
-be going. When a planted foot runs out of reach — a reversal, a hard turn — it
+be going. The rescue below is measured against the gait's **own half-stride**, never
+against the leg. The gait deliberately trails a foot half a stride behind by
+toe-off, so any cap below that fires on every single stance and chops the
+stride short before the foot ever gets behind the body — a sprint then reads
+as a shuffle however long its stride is set. Reach is the solver's problem,
+and `TwoBone` already handles a target it cannot make by landing the foot
+short.
+
+That does mean a stride can be asked for that the legs cannot perform. The
+longest one they can is `2 × sqrt(leg² − hip²)`, printed at startup, because
+the stride that looks right and the stride the rig can reach are different
+numbers and only one of them is guessable.
+
+When a planted foot runs out of reach — a reversal, a hard turn — it
 **steps early rather than sliding**. Dragging the anchor onto the reach
 circle bounds the problem and looks terrible: the circle moves with the hip,
 so every frame re-clamps and the foot skates along at arm's length. Jumping

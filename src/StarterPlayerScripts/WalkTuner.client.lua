@@ -62,7 +62,7 @@ local refresh = {}
 	rides on top of it, then the response.
 ]]
 local GROUPS = {
-	{ "Step", { "StepLength", "StrideSpeedRef", "StrideExponent", "MinStrideScale", "StepHeight", "SwingTuck", "LiftSkew", "DutyFactor", "StanceWidth", "FootAhead", "AnkleHeight", "GroundSmoothTime", "MaxStride", "MaxReach", "PhaseRecover" } },
+	{ "Step", { "StepLength", "StrideSpeedRef", "StrideExponent", "MinStrideScale", "StepHeight", "SwingTuck", "LiftSkew", "DutyFactor", "StanceWidth", "FootAhead", "AnkleHeight", "GroundSmoothTime", "MaxStride", "PhaseRecover" } },
 	{ "Strafe", { "StrafeStagger", "StrafeCross", "StrafeWidth", "StrafeLift", "SideStepRatio" } },
 	{ "Direction", { "FootTurnToMove", "MaxFootYaw", "MaxFootLag", "PivotRate", "KneeFollowsFoot", "FootTurnTime", "FootSpeedRatio", "MinFootSpeed" } },
 	{ "Idle", { "IdleSlack", "IdleStepTime" } },

@@ -335,7 +335,7 @@ Config.Gait = "procedural"
 ]]
 Config.Walk = {
 	-- Ground covered by one full stride, in studs, at StrideSpeedRef.
-	StepLength = 1.6,
+	StepLength = 2.918,
 	--[[
 		How stride and cadence split a change of pace.
 
@@ -508,23 +508,19 @@ Config.Walk = {
 	ToeAhead = 0,
 
 	--[[
-		How far a planted foot may end up from its hip, as a multiple of
-		StepLength, before its anchor is dragged back in.
+		How far a planted foot may get from its hip before it steps early,
+		as a multiple of the gait's own HALF-stride.
+
+		Half a stride is exactly where the gait puts the foot by toe-off,
+		so anything at or below 1 fires every stance and chops the stride
+		short -- which reads as a shuffle however long the stride is set.
 
 		A stance foot is pinned in the world, so a hard turn or a sudden speed
 		change can leave the hips walking away from it. Without this the leg
 		stretches until the solver clamps and the foot visibly tears off the
 		anchor.
 	]]
-	MaxStride = 2.2,
-	--[[
-		The same limit as a fraction of the leg's own length, whichever is
-		smaller. MaxStride alone came to six studs on this rig -- longer than
-		the leg -- so an over-stretched anchor was never caught and the
-		solver quietly clamped instead, which looks like a leg that has
-		stopped moving.
-	]]
-	MaxReach = 0.9,
+	MaxStride = 1.7,
 	--[[
 		How fast an early step's phase shift unwinds, in cycles per second.
 
@@ -798,7 +794,6 @@ Config.WalkRanges = {
 	SwingTuck = { 0, 0.9 },
 	LiftSkew = { 0.3, 2 },
 	MaxStride = { 1.2, 4 },
-	MaxReach = { 0.5, 1 },
 	PhaseRecover = { 0.05, 1.5 },
 	FootTurnToMove = { 0, 1 },
 	MaxFootYaw = { 0, 60 },

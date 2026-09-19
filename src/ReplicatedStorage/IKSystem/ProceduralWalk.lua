@@ -118,9 +118,25 @@ function ProceduralWalk.new(rig)
 			arms += self.legs[side].shoulder and 1 or 0
 		end
 	end
-	print(("[ProceduralWalk] %d legs ready: %s | %d/%d shoulders for arm swing (%s)")
+	--[[
+		Report the geometry, because the stride that looks right and the
+		stride the rig can perform are different numbers, and only one of
+		them is guessable.
+
+		A foot trails half a stride behind by toe-off while the hip stays
+		up, so the longest stride the legs can actually reach is twice
+		sqrt(leg^2 - hip^2). Ask for more and TwoBone lands the foot short
+		of where the gait put it: the leg goes straight and the foot slides
+		off its plant.
+	]]
+	local leg = self.legs.Left or self.legs.Right
+	local span = leg and (leg.bone.l1 + leg.bone.l2) or 0
+	local hipUp = rig.humanoid and rig.humanoid.HipHeight or 0
+	local reachable = 2 * math.sqrt(math.max(span * span - hipUp * hipUp, 0))
+
+	print(("[ProceduralWalk] %d legs ready: %s | leg %.2f, hip %.2f up -> longest stride %.2f | %d/%d shoulders (%s)")
 		:format(#ready, #ready > 0 and table.concat(ready, ", ") or "NONE",
-			arms, #ready, Config.Walk.ShoulderJoint))
+			span, hipUp, reachable, arms, #ready, Config.Walk.ShoulderJoint))
 
 	return self
 end
@@ -694,10 +710,23 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 	local p = (self.phase + side.offset + leg.shift) % 1
 	local swinging = p >= duty
 
-	-- Furthest the foot may be from its hip: the shorter of a stride limit
-	-- and what the leg can physically reach.
-	local limit = math.min(stepLength * cfg.MaxStride,
-		(leg.bone.l1 + leg.bone.l2) * cfg.MaxReach)
+	--[[
+		Furthest a planted foot may get from its hip before it gives up and
+		steps early.
+
+		Measured against the gait's OWN half-stride, not against the leg.
+		The gait deliberately trails a foot half a stride behind by
+		toe-off, so any cap below that fires on every single stance and
+		chops the stride short before the foot ever gets behind the body --
+		which is a sprint reading as a shuffle. The leg-length cap did
+		exactly that at any stride longer than the legs, which is every
+		stride worth having.
+
+		Reach is the solver's problem, and TwoBone already handles a target
+		it cannot make by landing the foot short. This is only here to
+		rescue a foot the body has genuinely run away from.
+	]]
+	local limit = stepLength * 0.5 * cfg.MaxStride
 
 	--[[
 		Where this foot would stand with no gait at all: under its own hip.
