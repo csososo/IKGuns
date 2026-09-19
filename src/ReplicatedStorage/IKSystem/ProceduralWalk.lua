@@ -274,9 +274,28 @@ function ProceduralWalk:Update(dt: number)
 		the phase off a clock instead means picking a cadence, and then the
 		feet skate whenever the speed disagrees with it.
 	]]
+	--[[
+		Side-steps are shorter than forward steps, and they have to be.
+
+		The feet are held apart ACROSS the body, so when travel turns
+		sideways the stride runs along the very axis that keeps them apart.
+		A step longer than twice the separation lands the trailing foot past
+		the leading one, and that is the crossing -- with a 2.78 stride and
+		1.2 of hip separation the trailing foot overshoots by 0.19 studs,
+		every single side-step.
+
+		Clamping a foot to its own side stops the crossing and produces
+		something worse: the trailing foot reaches the limit and then simply
+		stops, so the leg slides instead of stepping. Shortening the stride
+		keeps BOTH feet stepping, and is what people actually do.
+	]]
+	local sideways = math.abs(moveDir:Dot(frame.RightVector))
+	local cap = math.max(self.separation or 0, 0.1) * cfg.SideStepRatio
+	local stepLength = math.max(
+		cfg.StepLength * (1 - sideways) + math.min(cfg.StepLength, cap) * sideways, 0.1)
+
 	if moving then
-		local length = math.max(cfg.StepLength, 0.1)
-		self.cadence = self.speed * cfg.DutyFactor / length
+		self.cadence = self.speed * cfg.DutyFactor / stepLength
 	end
 
 	--[[
@@ -309,6 +328,13 @@ function ProceduralWalk:Update(dt: number)
 	]]
 	local parentCF = rootMotor.Part0.CFrame * rootMotor.C0
 	local restPelvis = parentCF * rootMotor.C1:Inverse()
+
+	-- How far apart the feet stand, from the rig rather than from a guess.
+	local left, right = self.legs.Left, self.legs.Right
+	if left and right then
+		self.separation = ((restPelvis * left.hip.C0).Position
+			- (restPelvis * right.hip.C0).Position).Magnitude + math.abs(cfg.StanceWidth)
+	end
 
 	--[[
 		Pelvic list: the hip on the swinging side drops, about 5 degrees in a
@@ -350,7 +376,7 @@ function ProceduralWalk:Update(dt: number)
 	for _, side in ORDER do
 		local leg = self.legs[side]
 		if leg then
-			self:_leg(leg, SIDES[side], frame, moveDir, pelvisCF, floorY, params)
+			self:_leg(leg, SIDES[side], frame, moveDir, stepLength, pelvisCF, floorY, params)
 			self:_arm(leg, (self.phase + SIDES[side].offset) % 1, chestCF, frame)
 		end
 	end
@@ -390,7 +416,7 @@ function ProceduralWalk:_spine(pelvisCF: CFrame, yaw: number)
 	return parent
 end
 
-function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, pelvisCF: CFrame, floorY: number, params: RaycastParams)
+function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLength: number, pelvisCF: CFrame, floorY: number, params: RaycastParams)
 	local cfg = Config.Walk
 
 	local hipCF = pelvisCF * leg.hip.C0
@@ -431,8 +457,8 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, pelvisC
 			At t=1 the remaining travel is zero, so the target is simply half
 			a stride ahead of the hip: a heel strike.
 		]]
-		local remaining = cfg.StepLength * (1 - duty) / duty * (1 - t)
-		local landing = neutral + moveDir * (remaining + cfg.StepLength * 0.5)
+		local remaining = stepLength * (1 - duty) / duty * (1 - t)
+		local landing = neutral + moveDir * (remaining + stepLength * 0.5)
 
 		leg.from = leg.from or neutral
 		place = leg.from:Lerp(landing, t * t * (3 - 2 * t))
@@ -461,7 +487,7 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, pelvisC
 		has got.
 	]]
 	local reach = (Vector3.new(place.X - hipPos.X, 0, place.Z - hipPos.Z)).Magnitude
-	local limit = math.max(cfg.StepLength, 0.1) * cfg.MaxStride
+	local limit = stepLength * cfg.MaxStride
 	if reach > limit then
 		local slide = math.clamp((reach - limit) / limit, 0, 1)
 		place = place:Lerp(neutral, slide)
@@ -469,37 +495,28 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, pelvisC
 	end
 
 	--[[
-		Neither foot may cross the body's midline.
+		Standing still, a foot stays where it is.
 
-		Steps go along the direction of travel, and that on its own will
-		happily send BOTH feet the same way: strafing left, the right foot
-		steps left too, straight through the left leg. Turning does the same
-		to the inside foot. That is the leg intersection -- not a solver
-		failure, just a target nothing stopped from being on the wrong side.
+		Folding straight back to "under the hip" means the feet orbit the
+		body every time it turns. In shift lock the character follows the
+		camera, so that is every time you look around -- the feet slide
+		about with nobody stepping, which is exactly what "they move on
+		their own" is.
 
-		Clamping the lateral offset rather than the whole position keeps the
-		step's reach along travel intact; only the sideways part is limited,
-		which is what turns a crossover into a proper side-step where the
-		trailing foot closes up instead of passing.
+		So the resting pose is the anchor, not the hip. It is dragged in
+		only once it has drifted further than IdleSlack, which is the
+		shuffle you do when you have turned too far to stand comfortably.
 	]]
-	local midline = pelvisCF.Position
-	local across = Vector3.new(place.X - midline.X, 0, place.Z - midline.Z)
-	local lateral = across:Dot(frame.RightVector)
-	local keepOut = cfg.MinSeparation * 0.5
-	local held = (side.sign > 0) and math.max(lateral, keepOut)
-		or math.min(lateral, -keepOut)
-	if math.abs(held - lateral) > 1e-5 then
-		place += frame.RightVector * (held - lateral)
-		leg.anchor = swinging and leg.anchor or place
+	local rest = leg.anchor or neutral
+	local drift = Vector3.new(rest.X - neutral.X, 0, rest.Z - neutral.Z)
+	if drift.Magnitude > cfg.IdleSlack then
+		rest = rest:Lerp(neutral,
+			math.clamp((self.dt or 0) / math.max(cfg.IdleStepTime, 1e-3), 0, 1))
+		leg.anchor = rest
 	end
 
-	-- Fold the whole gait back to the standing pose as the blend drops.
-	place = neutral:Lerp(place, self.blend)
+	place = rest:Lerp(place, self.blend)
 	lift *= self.blend
-	if self.blend < 0.01 then
-		leg.anchor = neutral
-		leg.from = neutral
-	end
 
 	local plant = place
 
@@ -535,10 +552,15 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, pelvisC
 	local footYaw = math.clamp(off * math.clamp(cfg.FootTurnToMove, 0, 1), -maxYaw, maxYaw)
 	local wantRot = frame.Rotation * CFrame.Angles(0, -footYaw, 0)
 
-	local turn = (self.dt or 0) / math.max(cfg.FootTurnTime, 1e-3)
-	if not swinging then
-		turn *= 1 - self.blend
-	end
+	--[[
+		Only a foot in the air turns. A planted one holds, full stop.
+
+		Easing it round while standing was the other half of the shift-lock
+		problem: looking about spun both feet on the spot. The pivot below
+		is the only thing that may move a planted foot, and it only fires
+		once the mismatch is too big to stand in.
+	]]
+	local turn = swinging and (self.dt or 0) / math.max(cfg.FootTurnTime, 1e-3) or 0
 	leg.footRot = leg.footRot
 		and leg.footRot:Lerp(wantRot, math.clamp(turn, 0, 1))
 		or wantRot

@@ -455,14 +455,25 @@ Config.Walk = {
 	]]
 	MaxFootLag = 35,
 	--[[
-		Minimum distance between the feet across the body, in studs.
+		Longest side-step, as a multiple of how far apart the feet stand.
 
-		Steps go along the direction of travel, which on its own sends BOTH
-		feet the same way -- strafing left, the right foot steps left too,
-		straight through the left leg. This is what stops a crossover and
-		turns it into a side-step where the trailing foot closes up.
+		Sideways travel runs the stride along the same axis that keeps the
+		feet apart, so a step past twice the separation lands the trailing
+		foot beyond the leading one. Under 2 leaves margin; the stride is
+		scaled down towards this as travel turns sideways, rather than a foot
+		being clamped still.
 	]]
-	MinSeparation = 0.6,
+	SideStepRatio = 1.6,
+
+	--[[
+		How far a foot may drift from under its hip while standing before it
+		shuffles back, in studs, and how long that takes.
+
+		Without slack here the feet orbit the body whenever it turns, which in
+		shift lock is every time you move the camera.
+	]]
+	IdleSlack = 0.5,
+	IdleStepTime = 0.25,
 	-- Seconds for a foot in the air to swing round to its landing heading.
 	FootTurnTime = 0.12,
 	-- Seconds for the movement direction itself to follow a change of input.
@@ -518,7 +529,9 @@ Config.WalkRanges = {
 	FootTurnToMove = { 0, 1 },
 	MaxFootYaw = { 0, 60 },
 	MaxFootLag = { 5, 90 },
-	MinSeparation = { 0, 2 },
+	SideStepRatio = { 0.8, 3 },
+	IdleSlack = { 0.1, 2 },
+	IdleStepTime = { 0.05, 1 },
 	FootTurnTime = { 0.02, 0.5 },
 	TurnTime = { 0.02, 0.5 },
 	MinSpeed = { 0.1, 4 },

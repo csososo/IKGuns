@@ -230,13 +230,23 @@ to meet the heading it is about to land on. At low blend it eases back to
 facing anyway, so turning on the spot brings the feet round rather than
 leaving them splayed.
 
-**Neither foot may cross the midline.** Steps along travel will otherwise
-send both feet the same way — strafing left, the right foot steps left too,
-straight through the left leg, and turning does the same to the inside foot.
-That is what leg intersection is: not a solver failure, just a target nothing
-stopped from being on the wrong side. `MinSeparation` clamps the lateral
-offset only, so the step keeps its reach along travel and a crossover becomes
-a side-step where the trailing foot closes up.
+**Side-steps are shorter, and have to be.** The feet are held apart *across*
+the body, so sideways travel runs the stride along the very axis keeping them
+apart. A step longer than twice the separation lands the trailing foot past
+the leading one — with a 2.78 stride against 1.2 of hip separation, it
+overshoots by 0.19 studs on every side-step. That is the leg intersection.
+
+Clamping each foot to its own side stops the crossing and produces something
+worse: the trailing foot hits the limit and *stops*, so the leg slides instead
+of stepping. `SideStepRatio` scales the stride down as travel turns sideways
+instead, which keeps both feet stepping.
+
+**Standing still, a foot stays where it is.** Folding back to "under the hip"
+makes the feet orbit the body whenever it turns — in shift lock, where the
+character follows the camera, that is every time you look around. The resting
+pose is therefore the anchor, not the hip, dragged in only once it has drifted
+past `IdleSlack`. For the same reason a planted foot never rotates at all; the
+`MaxFootLag` pivot is the only thing permitted to move it.
 
 Foot heading is an **angle off the facing**, clamped by `MaxFootYaw`, not a
 lerp between two direction vectors — that collapses to zero length when
