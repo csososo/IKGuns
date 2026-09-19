@@ -370,8 +370,8 @@ Config.Walk = {
 		of mass on a flatter path than the legs alone would allow, and without
 		it the pelvis reads as a plank the legs are bolted to.
 	]]
-	PelvisList = -4.138,
-	PelvisListPhase = -0.690,
+	PelvisList = 2.069,
+	PelvisListPhase = 0.431,
 	--[[
 		How much of the pelvis rotation the spine gives back.
 
