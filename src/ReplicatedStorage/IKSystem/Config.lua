@@ -599,6 +599,92 @@ Config.Walk = {
 }
 
 --[[
+	Running, as a set of overrides on the walk rather than a second gait.
+
+	Everything in ProceduralWalk already scales with speed -- stride,
+	cadence, how far the body leans -- so what actually separates a run from
+	a walk is the tuning, not the machinery. These values are blended in
+	across BlendFrom..BlendTo, so there is no switch to catch and diagonals
+	and part-speeds land somewhere sensible on their own.
+
+	Anything left out of this table keeps its walk value.
+
+	Signs follow the walk's, because they encode which way this rig's axes
+	point rather than anything about gait: if a walk value is negative here,
+	its run counterpart is too.
+]]
+Config.Run = {
+	-- Speeds the sprint key switches between.
+	WalkSpeed = 16,
+	SprintSpeed = 28,
+	--[[
+		Deliberately not Shift: that is shift lock's key, and the strafe
+		work depends on shift lock being usable.
+	]]
+	SprintKey = Enum.KeyCode.LeftControl,
+
+	-- Where the run profile starts and finishes taking over, in studs/s.
+	BlendFrom = 18,
+	BlendTo = 26,
+
+	--[[
+		A DutyFactor below 0.5 means a moment with neither foot down. In a
+		walk that is a defect; in a run it is the flight phase, and it is
+		what actually makes it a run.
+	]]
+	DutyFactor = 0.35,
+	StepLength = 4.2,
+	StepHeight = 1.0,
+	FootAhead = 0.1,
+
+	-- Forefoot strike: a run lands toes-first, not heel-first, so this
+	-- crosses zero rather than merely shrinking.
+	HeelStrikeAngle = -6,
+	ToeOffAngle = 26,
+
+	BobHeight = 0.12,
+	SwayWidth = 0.02,
+	LeanAngle = -14,
+	BodyYaw = -16,
+	PelvisList = 1.2,
+	ChestCounter = 0.8,
+
+	-- Arms drive a sprint: bent hard and swinging much further.
+	ArmSwing = -34,
+	ElbowBend = 45,
+	ElbowSwing = 25,
+
+	StrafeStagger = 0.7,
+	StrafeWidth = 0.4,
+	StrafeLift = 0.3,
+}
+
+Config.RunRanges = {
+	SprintSpeed = { 16, 60 },
+	BlendFrom = { 4, 40 },
+	BlendTo = { 6, 60 },
+	DutyFactor = { 0.2, 0.7 },
+	StepLength = { 1, 9 },
+	StepHeight = { 0, 2.5 },
+	FootAhead = { -1.5, 1.5 },
+	HeelStrikeAngle = { -30, 30 },
+	ToeOffAngle = { 0, 45 },
+	BobHeight = { -0.5, 0.5 },
+	SwayWidth = { -0.5, 0.5 },
+	LeanAngle = { -35, 35 },
+	BodyYaw = { -30, 30 },
+	PelvisList = { -15, 15 },
+	ChestCounter = { 0, 1.5 },
+	ArmSwing = { -70, 70 },
+	ElbowBend = { -90, 90 },
+	ElbowSwing = { -70, 70 },
+	StrafeStagger = { -1.5, 1.5 },
+	StrafeWidth = { 0, 1.5 },
+	StrafeLift = { 0, 1 },
+}
+
+
+--[[
 	Ranges the tuner shows, as { min, max }. A value missing from here is
 	still used by the gait, it just does not get a slider.
 ]]

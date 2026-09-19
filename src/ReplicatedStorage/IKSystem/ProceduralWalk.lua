@@ -38,6 +38,35 @@ local ORDER = { "Left", "Right" }
 -- Below this blend the gait is done and the idle stance owns the feet.
 local SETTLED = 0.05
 
+--[[
+	The tuned values, blended between walking and running by speed.
+
+	Falls through to Config.Walk for anything Config.Run does not override,
+	so a run profile only has to state what differs. Resolved once a frame
+	into one reused table rather than per lookup: every read below wants the
+	same answer, and the gait reads dozens of them per leg.
+]]
+function ProceduralWalk:_tuned(): { [string]: any }
+	local run = Config.Run
+	local span = math.max(run.BlendTo - run.BlendFrom, 1e-3)
+	local mix = math.clamp((self.speed - run.BlendFrom) / span, 0, 1)
+	self.run = mix
+
+	local tuned = self.tuned
+	for key, value in run do
+		local walk = Config.Walk[key]
+		--[[
+			Only numbers blend. Run carries its own settings too -- the
+			sprint key, the speeds, the blend range -- and those are not
+			gait values and have no walk counterpart to cross-fade with.
+		]]
+		if type(value) == "number" and type(walk) == "number" then
+			tuned[key] = walk + (value - walk) * mix
+		end
+	end
+	return tuned
+end
+
 function ProceduralWalk.new(rig)
 	local self = setmetatable({}, ProceduralWalk)
 	self.rig = rig
@@ -47,6 +76,9 @@ function ProceduralWalk.new(rig)
 	self.speed = 0
 	self.cadence = 0
 	self.velocity = nil
+	self.run = 0
+	-- Anything Run does not override falls through to the walk's value.
+	self.tuned = setmetatable({}, { __index = Config.Walk })
 	self:_measure()
 
 	--[[
@@ -227,7 +259,7 @@ local function footRoll(p: number, duty: number, cfg): (number, number)
 end
 
 function ProceduralWalk:Update(dt: number)
-	local cfg = Config.Walk
+	local cfg = Config.Walk  -- replaced below, once the speed is known
 	local rig = self.rig
 	local root = rig.parts.Root
 	local rootMotor = rig.motors.Root
@@ -269,6 +301,10 @@ function ProceduralWalk:Update(dt: number)
 	self.velocity = (self.velocity or travel):Lerp(travel,
 		1 - math.exp(-dt / math.max(cfg.SpeedSmooth, 1e-3)))
 	self.speed = self.velocity.Magnitude
+
+	-- Speed is known now, so the walk/run blend can be resolved and used
+	-- for everything from here on, including by _leg, _arm and _spine.
+	cfg = self:_tuned()
 
 	local moving = self.speed > cfg.MinSpeed
 	self.blend = Util.damp(self.blend, moving and 1 or 0, cfg.BlendTime, dt)
@@ -573,7 +609,7 @@ end
 	this module's own output from last frame.
 ]]
 function ProceduralWalk:_spine(pelvisCF: CFrame, yaw: number)
-	local cfg = Config.Walk
+	local cfg = self.tuned
 	local spine = self.rig.spine
 	if not spine then
 		return pelvisCF
@@ -595,7 +631,7 @@ function ProceduralWalk:_spine(pelvisCF: CFrame, yaw: number)
 end
 
 function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLength: number, pelvisCF: CFrame, bodyCF: CFrame, floorY: number, params: RaycastParams)
-	local cfg = Config.Walk
+	local cfg = self.tuned
 
 	local hipCF = pelvisCF * leg.hip.C0
 	local hipPos = hipCF.Position
@@ -1091,7 +1127,7 @@ function ProceduralWalk:_arm(leg, p: number, chestCF: CFrame, frame: CFrame)
 	if not leg.shoulder then
 		return
 	end
-	local cfg = Config.Walk
+	local cfg = self.tuned
 
 	-- Half a cycle out of phase with its own leg: left arm forward with the
 	-- right leg, which is what the counter-rotating torso is doing anyway.

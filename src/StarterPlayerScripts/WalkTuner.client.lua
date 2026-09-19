@@ -43,6 +43,19 @@ local GROUPS = {
 	{ "Pelvis", { "BodyYaw", "PelvisList", "PelvisListPhase", "ChestCounter" } },
 	{ "Arms", { "ArmSwing", "ElbowBend", "ElbowSwing" } },
 	{ "Response", { "MinSpeed", "BlendTime", "SpeedSmooth", "LeanSpeed" } },
+	--[[
+		Running is a set of overrides on everything above, blended in by
+		speed, so these rows edit Config.Run rather than Config.Walk. A value
+		here only matters if it should differ from its walk counterpart.
+	]]
+	{ "Run", {
+		"SprintSpeed", "BlendFrom", "BlendTo",
+		"StepLength", "StepHeight", "DutyFactor", "FootAhead",
+		"HeelStrikeAngle", "ToeOffAngle",
+		"BobHeight", "SwayWidth", "LeanAngle", "BodyYaw", "PelvisList", "ChestCounter",
+		"ArmSwing", "ElbowBend", "ElbowSwing",
+		"StrafeStagger", "StrafeWidth", "StrafeLift",
+	}, Config.Run, Config.RunRanges },
 }
 
 local player = Players.LocalPlayer
@@ -131,7 +144,7 @@ end
 	The readout is a TextBox, so anything the slider's range cannot reach --
 	or any number you already know you want -- can just be typed in.
 ]]
-local function slider(key: string, min: number, max: number)
+local function slider(store, key: string, min: number, max: number)
 	local row = Instance.new("Frame")
 	row.Size = UDim2.new(1, 0, 0, ROW)
 	row.BackgroundTransparency = 1
@@ -191,7 +204,7 @@ local function slider(key: string, min: number, max: number)
 	end
 
 	local function set(value: number)
-		Config.Walk[key] = value
+		store[key] = value
 		show(value)
 	end
 
@@ -234,19 +247,21 @@ local function slider(key: string, min: number, max: number)
 			-- guess at what is useful, not a limit on what is legal.
 			set(typed)
 		else
-			show(Config.Walk[key])
+			show(store[key])
 		end
 	end)
 
-	show(Config.Walk[key])
+	show(store[key])
 end
 
 for _, group in GROUPS do
 	label(group[1]:upper(), 11, DIM)
+	local store = group[3] or Config.Walk
+	local ranges = group[4] or Config.WalkRanges
 	for _, key in group[2] do
-		local range = Config.WalkRanges[key]
-		if range then
-			slider(key, range[1], range[2])
+		local range = ranges[key]
+		if range and type(store[key]) == "number" then
+			slider(store, key, range[1], range[2])
 		end
 	end
 end
@@ -271,11 +286,12 @@ copyCorner.Parent = copy
 	over Config.Walk. Nothing here survives the session otherwise.
 ]]
 copy.Activated:Connect(function()
-	local out = { "-- paste over the matching lines in Config.Walk" }
+	local out = { "-- paste over the matching lines in Config.Walk / Config.Run" }
 	for _, group in GROUPS do
 		table.insert(out, ("\t-- %s"):format(group[1]))
+		local store = group[3] or Config.Walk
 		for _, key in group[2] do
-			local value = Config.Walk[key]
+			local value = store[key]
 			if type(value) == "number" then
 				table.insert(out, ("\t%s = %.3f,"):format(key, value))
 			end

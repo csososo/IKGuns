@@ -93,7 +93,8 @@ Weights are in `Config.Aim.SpineJoints`.
      itself).
    - `src/StarterPlayerScripts/` → LocalScripts in
      `StarterPlayer > StarterPlayerScripts`: `IKController` drives the system,
-     `CharacterAnimator` plays the clips, `WalkTuner` is the gait panel.
+     `CharacterAnimator` plays the clips, `WalkTuner` is the gait panel,
+     `Sprint` holds the run key.
    - `src/ServerScriptService/CharacterSetup.server.lua` → a Script in
      `ServerScriptService`.
 2. Press play. Walk onto a slope — feet should tilt and meet it.
@@ -438,6 +439,28 @@ Arms swing against the leg on the same side, and **bend**. A shoulder rotating
 on its own is what reads as a mannequin. `ElbowBend` is posture and survives
 the blend, because a real arm never straightens even standing still;
 `ElbowSwing` is the extra flexion as the arm comes forward.
+
+### Running
+
+`Config.Run` is a set of **overrides on the walk**, not a second gait.
+Everything in `ProceduralWalk` already scales with speed — stride, cadence,
+how far the body leans — so what actually separates a run from a walk is the
+tuning, not the machinery. The run profile is blended in across
+`BlendFrom`..`BlendTo`, so there is no switch to catch and part-speeds and
+diagonals land somewhere sensible on their own. Anything the table leaves out
+keeps its walk value.
+
+Two things genuinely change in kind rather than degree. `DutyFactor` drops
+below 0.5, which means a moment with neither foot down — a defect in a walk,
+the flight phase in a run, and what makes it a run at all. And
+`HeelStrikeAngle` crosses zero rather than merely shrinking, because a run
+lands on the forefoot instead of the heel.
+
+`Sprint.client.lua` only changes `WalkSpeed`. The gait has no notion of a
+sprint button, so anything else that changes your speed gets the right gait
+for free and there is no state that can disagree with the legs. The key is
+deliberately not Shift, which belongs to shift lock, and the strafe behaviour
+depends on shift lock being usable.
 
 ### Tuning it
 
