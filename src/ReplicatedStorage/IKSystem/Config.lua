@@ -381,7 +381,7 @@ Config.Walk = {
 	]]
 	ChestCounter = 0.6,
 	-- Shoulder swing, degrees, opposite the leg on the same side.
-	ArmSwing = 27.931,
+	ArmSwing = -19.397,
 	--[[
 		Elbow flexion, degrees.
 
