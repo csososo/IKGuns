@@ -455,15 +455,7 @@ Config.Walk = {
 		solver quietly clamped instead, which looks like a leg that has
 		stopped moving.
 	]]
-	MaxReach = 0.97,
-	--[[
-		How fast an over-stretched foot is eased in while it waits for the
-		other one to land, in studs per second.
-
-		Only ever while blocked from stepping, which is what keeps it from
-		becoming the constant skating that dragging every frame caused.
-	]]
-	DragSpeed = 6,
+	MaxReach = 0.9,
 	--[[
 		How fast an early step's phase shift unwinds, in cycles per second.
 
@@ -610,7 +602,6 @@ Config.WalkRanges = {
 	ElbowSwing = { -60, 60 },
 	MaxStride = { 1.2, 4 },
 	MaxReach = { 0.5, 1 },
-	DragSpeed = { 1, 20 },
 	PhaseRecover = { 0.05, 1.5 },
 	FootTurnToMove = { 0, 1 },
 	MaxFootYaw = { 0, 60 },

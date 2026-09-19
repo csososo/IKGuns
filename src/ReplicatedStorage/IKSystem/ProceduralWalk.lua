@@ -63,10 +63,9 @@ function ProceduralWalk.new(rig)
 			arms += self.legs[side].shoulder and 1 or 0
 		end
 	end
-	local span = self.legs.Left and (self.legs.Left.bone.l1 + self.legs.Left.bone.l2) or 0
-	print(("[ProceduralWalk] %d legs ready: %s | leg %.2f studs, reach %.2f | %d/%d shoulders (%s)")
+	print(("[ProceduralWalk] %d legs ready: %s | %d/%d shoulders for arm swing (%s)")
 		:format(#ready, #ready > 0 and table.concat(ready, ", ") or "NONE",
-			span, span * Config.Walk.MaxReach, arms, #ready, Config.Walk.ShoulderJoint))
+			arms, #ready, Config.Walk.ShoulderJoint))
 
 	return self
 end
@@ -579,39 +578,12 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		The shift unwinds over the following strides, so the two legs come
 		back into alternation on their own.
 	]]
-	--[[
-		Reach is measured in THREE dimensions, because the leg is spanning
-		the drop to the floor as well as the distance across it.
-
-		Comparing a horizontal offset against a fraction of the leg's total
-		length ignores most of what the leg is doing. On this rig it let a
-		foot sit 2.07 studs out from a hip 2.2 studs above it -- 3.02 away,
-		on a leg about 2.3 long. The solver clamped, the knee locked
-		straight, and the trigger that should have stepped never fired
-		because the flat measurement said everything was fine. That is a
-		leg extending too far AND getting stuck, from one mistake.
-	]]
 	local other = self.legs[side.other]
-	if not swinging and leg.anchor then
-		local blocked = other and other.airborne
-		if (leg.anchor - hipPos).Magnitude > limit then
-			if blocked then
-				--[[
-					Wanting to step and not allowed to -- the other foot is
-					still in the air -- so ease in rather than hanging at
-					full stretch for the rest of its swing. Bounded, and
-					only ever while blocked, which is why this does not
-					become the skating that dragging every frame caused.
-				]]
-				local toward = neutral - leg.anchor
-				local most = cfg.DragSpeed * (self.dt or 0)
-				leg.anchor = (toward.Magnitude > most)
-					and leg.anchor + toward.Unit * most
-					or neutral
-			else
-				leg.shift = (leg.shift + duty - p) % 1
-				p, swinging = duty, true
-			end
+	if not swinging and leg.anchor and not (other and other.airborne) then
+		local held = Vector3.new(leg.anchor.X - hipPos.X, 0, leg.anchor.Z - hipPos.Z)
+		if held.Magnitude > limit then
+			leg.shift = (leg.shift + duty - p) % 1
+			p, swinging = duty, true
 		end
 	end
 
@@ -682,22 +654,10 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		sliding is not ideal; a planted foot the leg cannot reach is worse,
 		and being dragged is what actually happens to you.
 	]]
-	--[[
-		Deliberately no position clamp here.
-
-		Clamping the foot to what the leg can reach is correct and useless:
-		the horizontal budget is whatever is left after the drop to the
-		floor, sqrt(reach^2 - drop^2), and with the hip nearly a leg's
-		length above the ground that collapses towards nothing. It pinned
-		each foot under its own hip, so the legs stopped stepping and only
-		went up and down.
-
-		TwoBone already handles a target it cannot reach -- it clamps the
-		distance and the foot simply lands short -- so the pose is never
-		impossible, only straight-legged at the extremes of a stride the
-		rig is too short for. Reach belongs in the decision to STEP, above,
-		not in dragging a foot the gait has correctly placed.
-	]]
+	local out = Vector3.new(place.X - hipPos.X, 0, place.Z - hipPos.Z)
+	if out.Magnitude > limit and out.Magnitude > 1e-4 then
+		place = Vector3.new(hipPos.X, place.Y, hipPos.Z) + out.Unit * limit
+	end
 
 	--[[
 		Nothing moves a foot faster than a foot can move.
