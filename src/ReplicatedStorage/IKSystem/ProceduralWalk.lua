@@ -219,28 +219,41 @@ function ProceduralWalk:_ground(at: Vector3, params: RaycastParams): (number?, V
 	return nil, Vector3.yAxis
 end
 
--- Height of the swing arc, nil at both ends so the foot leaves and meets the
--- ground rather than arriving at it sideways.
-local function swingLift(t: number, height: number): number
-	return math.sin(math.pi * t) * height
+--[[
+	The swing, as a skewed time.
+
+	A symmetric arc peaks halfway through the swing -- and halfway through,
+	the foot is directly under the body. So the knee folds under the hip and
+	the trailing pose, thigh back with the shin folded up behind it, simply
+	cannot happen: by the time the foot is high it has already come forward.
+	No amount of height fixes that, which is why raising it only ever bought
+	floatiness.
+
+	Skewing time brings the peak forward. Below 1 it lands early, while the
+	foot is still well behind; at 1 this is the plain symmetric arc a walk
+	wants.
+]]
+local function swingPhase(t: number, skew: number): number
+	return t ^ math.max(skew, 0.05)
+end
+
+-- Nil at both ends, so the foot leaves and meets the ground rather than
+-- arriving at it sideways.
+local function swingLift(phase: number, height: number): number
+	return math.sin(math.pi * phase) * height
 end
 
 --[[
-	Heel recovery, as a bump peaking about a third of the way through the
-	swing and gone by touchdown.
+	Heel recovery: how far the foot folds in under its own hip.
 
-	A foot travelling in a straight line from where it left to where it
-	lands keeps the leg nearly its full length the whole way, so the knee
-	barely bends -- which is why a fast gait built that way reads as
-	pedalling. A sprinter's trailing foot comes up towards the backside
-	first and only then swings through, and it is the shortening that folds
-	the knee, not the height.
-
-	The 1.72 normalises the peak to 1, so SwingTuck reads as the fraction of
-	the way to under the hip that the foot actually gets.
+	Shares the lift's peak deliberately. Height alone cannot fold the knee
+	while the foot is trailing -- at a stride's reach behind the body the
+	horizontal distance is most of the leg's length on its own -- so the
+	foot has to come closer as well as higher, and both at the same moment.
+	Faded out by touchdown, where the foot needs its full reach again.
 ]]
-local function recovery(t: number): number
-	return math.sin(math.pi * t) * (1 - t) * 1.72
+local function recovery(phase: number, t: number): number
+	return math.sin(math.pi * phase) * (1 - t)
 end
 
 --[[
@@ -846,14 +859,18 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		leg.from = leg.from or neutral
 		place = leg.from:Lerp(landing, t * t * (3 - 2 * t))
 
-		-- Pull the foot in under its own hip early in the swing, which is
-		-- what folds the knee. Horizontal only: the arc owns the height.
-		local tuck = math.clamp(cfg.SwingTuck * recovery(t), 0, 0.9)
+		--[[
+			Fold the foot in under its own hip and lift it, both peaking
+			at the same early moment, which is what puts the knee under
+			the body while the thigh is still trailing.
+		]]
+		local phase = swingPhase(t, cfg.LiftSkew)
+		local tuck = math.clamp(cfg.SwingTuck * recovery(phase, t), 0, 0.9)
 		if tuck > 1e-4 then
 			place = place:Lerp(Vector3.new(hipPos.X, place.Y, hipPos.Z), tuck)
 		end
 
-		lift = swingLift(t, cfg.StepHeight + cfg.StrafeLift * sideways)
+		lift = swingLift(phase, cfg.StepHeight + cfg.StrafeLift * sideways)
 		leg.anchor = landing
 	else
 		--[[

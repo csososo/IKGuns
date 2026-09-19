@@ -454,13 +454,24 @@ degree: `DutyFactor` drops below 0.5, meaning a moment with neither foot down
 — a defect in a walk, the flight phase in a run — and `HeelStrikeAngle`
 crosses zero, because faster gaits land on the forefoot rather than the heel.
 
+**`LiftSkew` is what makes the trailing pose possible at all.** A symmetric
+swing arc peaks halfway through — and halfway through, the foot is directly
+under the body. So the knee can only ever fold *under the hip*; the sprinter's
+pose of a thigh still trailing with the shin folded up behind it is
+unreachable, however high the foot goes. That is why raising the step height
+only ever bought floatiness. Skewing the swing's time brings the peak forward,
+to around a quarter of the way through, while the foot is still well behind.
+
 Two things exist only because a fast gait needs them. **`SwingTuck`** folds
 the swinging foot in under its own hip early in the swing: a foot travelling
 straight from where it left to where it lands keeps the leg near full length
 the whole way, so the knee barely bends and the result reads as pedalling. A
 sprinter's trailing foot comes up towards the backside first, and it is that
-*shortening* which folds the knee — height alone will not do it. **`ArmLift`**
-adds shoulder angle across the forward half of the swing only, because a plain
+*shortening* which folds the knee — height alone will not do it. Height alone is not enough
+either: at a stride's reach behind the body the horizontal distance is most of
+the leg's length on its own, so the foot has to come *closer* as well as
+higher, and both at the same moment — which is why the tuck shares the lift's
+peak. **`ArmLift`** adds shoulder angle across the forward half of the swing only, because a plain
 sine is symmetric and therefore a march; real arm action brings the hand up
 towards the chin in front and only back to the hip pocket behind.
 

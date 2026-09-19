@@ -362,6 +362,17 @@ Config.Walk = {
 		the knee -- height alone will not do it.
 	]]
 	SwingTuck = 0.1,
+	--[[
+		Where in the swing the lift and the heel recovery peak. 1 is halfway,
+		which is a walk; below that they land earlier.
+
+		This is what decides whether the knee can fold BEHIND the body.
+		Halfway through a swing the foot is directly under the hip, so a
+		symmetric arc can only ever fold the knee there -- the trailing pose,
+		thigh back with the shin folded up, is unreachable however high the
+		foot goes.
+	]]
+	LiftSkew = 1,
 	-- Extra spread between the feet, on top of the rig's own hip spacing.
 	StanceWidth = 0.224,
 
@@ -673,6 +684,7 @@ Config.Jog = profile({
 	ElbowSwing = 25,
 	ArmLift = -10,
 	SwingTuck = 0.3,
+	LiftSkew = 0.8,
 
 	StrafeStagger = 0.7,
 	StrafeWidth = 0.4,
@@ -684,7 +696,7 @@ Config.Sprint = profile({
 	-- Longer flight, longer reach, and far more of the body involved.
 	DutyFactor = 0.28,
 	StepLength = 5.8,
-	StepHeight = 0.75,
+	StepHeight = 1.5,
 	FootAhead = -0.3,
 	StrideSpeedRef = 26,
 
@@ -706,6 +718,7 @@ Config.Sprint = profile({
 	ArmLift = -26,
 	-- Heel towards the backside before the leg swings through.
 	SwingTuck = 0.55,
+	LiftSkew = 0.5,
 
 	-- A sprint is never really sideways, but the values still have to be
 	-- something if you turn hard at speed.
@@ -783,6 +796,7 @@ Config.WalkRanges = {
 	ElbowSwing = { -90, 90 },
 	ArmLift = { -90, 90 },
 	SwingTuck = { 0, 0.9 },
+	LiftSkew = { 0.3, 2 },
 	MaxStride = { 1.2, 4 },
 	MaxReach = { 0.5, 1 },
 	PhaseRecover = { 0.05, 1.5 },
