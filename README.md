@@ -322,11 +322,20 @@ the ankle joint as a visible twist — the leg deforming when you turn while
 walking. Anatomically it is the wrong way round anyway: your knee tracks your
 foot, which is why a planted foot must pivot before you can turn much further.
 
-Foot heading is an **angle off the facing**, clamped by `MaxFootYaw`, not a
-lerp between two direction vectors — that collapses to zero length when
-travel opposes facing, and before that it points the feet backwards when
-walking backwards. Folding the yaw difference into the front half discards
-the reversal and keeps only how far off-axis the travel is. A planted foot
+Foot heading follows travel on a **smooth curve with no branch in it**:
+`sin(2 × angle)`, peaking on the diagonals and falling to nothing both
+straight ahead and straight sideways. Zero at pure lateral is right on its own
+terms — you side-step with your feet square to you, not swivelled into the
+direction you are sliding.
+
+It was a folded angle before, so walking backwards would behave like walking
+forwards. That fold's boundary sat at exactly 90° off the facing — which is
+pure lateral travel, strafing, the one case it most needed to get right.
+`atan2` returns exactly `π/2` there, so the feet turned 25° into the strafe or
+25° away from it depending on which side of the boundary floating-point noise
+landed on, and flipped between the two.
+
+A planted foot
 may lag the body by `MaxFootLag` before it pivots round, at `PivotRate` and
 going all the way rather than stopping at the limit — which is what a pivot on
 the ball of the foot does, and also avoids re-triggering on every frame the
