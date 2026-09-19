@@ -226,6 +226,24 @@ local function swingLift(t: number, height: number): number
 end
 
 --[[
+	Heel recovery, as a bump peaking about a third of the way through the
+	swing and gone by touchdown.
+
+	A foot travelling in a straight line from where it left to where it
+	lands keeps the leg nearly its full length the whole way, so the knee
+	barely bends -- which is why a fast gait built that way reads as
+	pedalling. A sprinter's trailing foot comes up towards the backside
+	first and only then swings through, and it is the shortening that folds
+	the knee, not the height.
+
+	The 1.72 normalises the peak to 1, so SwingTuck reads as the fraction of
+	the way to under the hip that the foot actually gets.
+]]
+local function recovery(t: number): number
+	return math.sin(math.pi * t) * (1 - t) * 1.72
+end
+
+--[[
 	How the foot is pitched at this point in the cycle, and how far the toe
 	joint gives back, both in radians. Positive pitch is toes up.
 
@@ -827,6 +845,14 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 
 		leg.from = leg.from or neutral
 		place = leg.from:Lerp(landing, t * t * (3 - 2 * t))
+
+		-- Pull the foot in under its own hip early in the swing, which is
+		-- what folds the knee. Horizontal only: the arc owns the height.
+		local tuck = math.clamp(cfg.SwingTuck * recovery(t), 0, 0.9)
+		if tuck > 1e-4 then
+			place = place:Lerp(Vector3.new(hipPos.X, place.Y, hipPos.Z), tuck)
+		end
+
 		lift = swingLift(t, cfg.StepHeight + cfg.StrafeLift * sideways)
 		leg.anchor = landing
 	else
@@ -1156,8 +1182,18 @@ function ProceduralWalk:_arm(leg, p: number, chestCF: CFrame, frame: CFrame)
 	-- right leg, which is what the counter-rotating torso is doing anyway.
 	local forward = math.sin(((p + 0.5) % 1) * math.pi * 2)
 
+	--[[
+		The forward arm rises further than the trailing one drops.
+
+		A plain sine swings symmetrically, which is a march. A sprinter's
+		hand comes up towards the chin in front and only back to the hip
+		pocket behind, so ArmLift is added across the forward half alone,
+		leaving the back of the swing where it was.
+	]]
+	local ahead = 0.5 + 0.5 * forward
 	local shoulderBase = chestCF * leg.shoulder.C0
-	local swing = math.rad(cfg.ArmSwing) * forward * self.blend
+	local swing = (math.rad(cfg.ArmSwing) * forward
+		+ math.rad(cfg.ArmLift) * ahead) * self.blend
 	local turn = (math.abs(swing) > 1e-5)
 		and Util.rotateAboutWorld(shoulderBase.Position, frame.RightVector, swing)
 		or CFrame.identity
@@ -1168,8 +1204,6 @@ function ProceduralWalk:_arm(leg, p: number, chestCF: CFrame, frame: CFrame)
 		return
 	end
 
-	-- 0 at the back of the swing, 1 at the front.
-	local ahead = 0.5 + 0.5 * forward
 	local bend = math.rad(cfg.ElbowBend) + math.rad(cfg.ElbowSwing) * ahead * self.blend
 
 	local upperCF = shoulderBase * shoulderT * leg.shoulder.C1:Inverse()

@@ -454,6 +454,16 @@ degree: `DutyFactor` drops below 0.5, meaning a moment with neither foot down
 — a defect in a walk, the flight phase in a run — and `HeelStrikeAngle`
 crosses zero, because faster gaits land on the forefoot rather than the heel.
 
+Two things exist only because a fast gait needs them. **`SwingTuck`** folds
+the swinging foot in under its own hip early in the swing: a foot travelling
+straight from where it left to where it lands keeps the leg near full length
+the whole way, so the knee barely bends and the result reads as pedalling. A
+sprinter's trailing foot comes up towards the backside first, and it is that
+*shortening* which folds the knee — height alone will not do it. **`ArmLift`**
+adds shoulder angle across the forward half of the swing only, because a plain
+sine is symmetric and therefore a march; real arm action brings the hand up
+towards the chin in front and only back to the hip pocket behind.
+
 **Sprinting is directional.** You cannot sprint sideways or backwards, so
 holding Shift only reaches `SprintSpeed` when the input is actually forward;
 anything else settles for a jog. W, W+A and W+D all qualify. The gait follows

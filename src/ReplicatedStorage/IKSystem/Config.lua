@@ -351,6 +351,17 @@ Config.Walk = {
 	MinStrideScale = 0.337,
 	-- Peak lift of a swinging foot.
 	StepHeight = 0.621,
+	--[[
+		How far the swinging foot folds in under its own hip, early in the
+		swing, as a fraction of the way there.
+
+		A foot travelling straight from where it left to where it lands keeps
+		the leg near its full length the whole way, so the knee barely bends
+		and a fast gait reads as pedalling. A sprinter's trailing foot comes
+		up towards the backside first, and it is that shortening which folds
+		the knee -- height alone will not do it.
+	]]
+	SwingTuck = 0.1,
 	-- Extra spread between the feet, on top of the rig's own hip spacing.
 	StanceWidth = 0.224,
 
@@ -443,6 +454,15 @@ Config.Walk = {
 	]]
 	ElbowBend = 5.172,
 	ElbowSwing = 7.241,
+	--[[
+		Extra shoulder angle across the FORWARD half of the swing only.
+
+		A plain sine swings symmetrically, which is a march. Real arm action
+		is lopsided: the hand comes up towards the chin in front and only
+		back to the hip pocket behind. Same sign as ArmSwing to push the
+		front further; zero leaves the swing even.
+	]]
+	ArmLift = 0,
 
 	-- Below this ground speed the gait folds back to a neutral stance.
 	MinSpeed = 0.6,
@@ -651,6 +671,8 @@ Config.Jog = profile({
 	ArmSwing = -34,
 	ElbowBend = 45,
 	ElbowSwing = 25,
+	ArmLift = -10,
+	SwingTuck = 0.3,
 
 	StrafeStagger = 0.7,
 	StrafeWidth = 0.4,
@@ -663,7 +685,7 @@ Config.Sprint = profile({
 	DutyFactor = 0.28,
 	StepLength = 5.8,
 	StepHeight = 0.75,
-	FootAhead = 0.2,
+	FootAhead = -0.3,
 	StrideSpeedRef = 26,
 
 	HeelStrikeAngle = -14,
@@ -678,8 +700,12 @@ Config.Sprint = profile({
 	ChestCounter = 1.0,
 
 	ArmSwing = -66,
-	ElbowBend = 85,
-	ElbowSwing = 38,
+	ElbowBend = 40,
+	ElbowSwing = 85,
+	-- Hand to the chin in front, hip pocket behind.
+	ArmLift = -26,
+	-- Heel towards the backside before the leg swings through.
+	SwingTuck = 0.55,
 
 	-- A sprint is never really sideways, but the values still have to be
 	-- something if you turn hard at speed.
@@ -755,6 +781,8 @@ Config.WalkRanges = {
 	ArmSwing = { -90, 90 },
 	ElbowBend = { -60, 60 },
 	ElbowSwing = { -90, 90 },
+	ArmLift = { -90, 90 },
+	SwingTuck = { 0, 0.9 },
 	MaxStride = { 1.2, 4 },
 	MaxReach = { 0.5, 1 },
 	PhaseRecover = { 0.05, 1.5 },
