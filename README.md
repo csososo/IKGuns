@@ -495,7 +495,8 @@ feature correctly does nothing.
 
 Say **`TunerTuner`** in chat to unlock the **gait tuner**. After that `]`
 shows and hides it, because retyping the phrase every time you want the view
-back would be tiresome — the phrase is the gate, not the toggle. The button in its header cycles
+back would be tiresome — the phrase is the gate, not the toggle. UserIds in
+`OPEN_FOR` skip the phrase and find it already up. The button in its header cycles
 which profile the rows edit — all three hold the same keys, so one panel
 drives any of them. Which gait you are *in* is chosen by speed; the switch
 only picks which one you are editing. It holds the same `Config` table the gait

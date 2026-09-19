@@ -121,7 +121,8 @@ gui.Name = "WalkTuner"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.DisplayOrder = 50
--- Hidden until the phrase is said; see the bottom of the file.
+-- Hidden until the phrase is said, unless you are in OPEN_FOR at the
+-- bottom of the file, which decides both of these.
 gui.Enabled = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
@@ -428,7 +429,20 @@ end
 	both would see each message twice and toggle straight back.
 ]]
 local PHRASE = "tunertuner"
-local unlocked = false
+
+--[[
+	Who skips the phrase entirely and finds the panel already up.
+
+	A set rather than one id, because the next person to want it will not
+	be the last, and a UserId is the only handle that survives a name
+	change.
+]]
+local OPEN_FOR = {
+	[325603006] = true,
+}
+
+local unlocked = OPEN_FOR[player.UserId] == true
+gui.Enabled = unlocked
 
 local function said(text: string)
 	if text:gsub("%s", ""):lower() ~= PHRASE then
