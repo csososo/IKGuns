@@ -126,9 +126,6 @@ function ProceduralWalk:_measure()
 			from = nil,
 			-- Phase offset from an early step, unwound over later strides.
 			shift = 0,
-			-- Which way this foot staggers while strafing; flips on each
-			-- plant so the two legs pass front to back.
-			cross = side == "Left",
 			-- True while this foot is turning under itself to catch up.
 			pivoting = false,
 			-- Last frame's world position, for the foot speed ceiling.
@@ -517,6 +514,26 @@ function ProceduralWalk:Update(dt: number)
 	local chestCF = self:_spine(pelvisCF, yaw)
 	local duty = math.clamp(cfg.DutyFactor, 0.05, 0.95)
 
+	--[[
+		Which foot is in front this stride, flipped once per FULL cycle.
+
+		It used to be a flag per leg, flipped when that leg planted. Two
+		flags flipping half a cycle apart drift in and out of agreement,
+		so half the time both feet got the same offset and it moved them
+		together instead of apart -- and the same foot stayed in front on
+		every single step. It never swapped at all.
+
+		One flag, applied with opposite sign to each foot, makes them
+		opposite by construction and swaps them every stride. Flipped on
+		the left leg's landing because that is once per cycle; flipping on
+		every landing is twice, which lands each foot back where it was.
+	]]
+	local leftUp = (self.phase % 1) >= duty
+	if self.leftWasUp and not leftUp then
+		self.stride = not self.stride
+	end
+	self.leftWasUp = leftUp
+
 	for _, side in ORDER do
 		local leg = self.legs[side]
 		if leg then
@@ -590,9 +607,8 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		Staggering is what people do anyway: you lead with the near foot
 		rather than keeping your feet square.
 
-		`lead` is +1 for the foot on the side you are heading towards and -1
-		for the other, scaled by how sideways the travel is, so every strafe
-		term vanishes on its own when walking forward. No separate case.
+		Every strafe term is scaled by how sideways the travel is, so they
+		all vanish on their own when walking forward. No separate case.
 	]]
 	--[[
 		Scaled by the blend, because the strafe posture belongs to the
@@ -605,7 +621,6 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 	]]
 	local lateral = (self.lateral or 0) * self.blend
 	local sideways = math.abs(lateral)
-	local lead = side.sign * lateral
 
 	--[[
 		Swap which foot leads on every plant.
@@ -618,21 +633,21 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		Read from last frame's airborne flag, before this frame overwrites
 		it below, so the flip lands exactly on touchdown.
 	]]
-	if leg.airborne and not swinging then
-		leg.cross = not leg.cross
-	end
 	--[[
-		Both terms are signed by the TRAVEL direction, not just scaled by
-		how sideways it is.
+		One offset, signed by which foot this is, so the pair is always
+		opposite: a clear front leg and a clear back leg rather than both
+		drifting the same way.
 
-		The cross term used to use the unsigned amount, so it added to the
-		stagger going one way and cancelled it going the other: 1.20 studs
-		of fore/aft spread strafing left against 0.20 strafing right. A
-		spread that large reads as the whole body turned, which is why
-		holding A swung it and holding D did not.
+		StrafeCross says how far that offset alternates from stride to
+		stride. At 1 it inverts outright and the feet change places; at 0
+		it never moves and one foot leads throughout; at 0.5 it alternates
+		between staggered and square. Signed by travel as well, so left and
+		right strafes mirror rather than one reinforcing and one
+		cancelling.
 	]]
-	local stagger = cfg.StrafeStagger * lead
-		+ cfg.StrafeCross * lateral * (leg.cross and 1 or -1)
+	local swap = self.stride and 1 or -1
+	local stagger = lateral * side.sign * cfg.StrafeStagger
+		* (1 - math.clamp(cfg.StrafeCross, 0, 1) * (1 - swap))
 
 	local neutral = Vector3.new(hipPos.X, floorY, hipPos.Z)
 		+ frame.LookVector * (cfg.FootAhead + stagger)

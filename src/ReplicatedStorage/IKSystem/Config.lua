@@ -370,18 +370,15 @@ Config.Walk = {
 	]]
 	StrafeStagger = 0.35,
 	--[[
-		Alternating stagger: how far the feet swap front and back between
-		side-steps, in studs.
+		How far the stagger alternates from stride to stride, 0 to 1.
 
-		StrafeStagger alone holds one foot permanently in front, which reads
-		as a pose being carried sideways. Flipping which foot leads on every
-		plant makes the legs pass each other -- forward, then back, then
-		forward -- which is the grapevine a real side-step falls into, and
-		the thing that makes it read as stepping rather than shuffling.
-
-		Set to 0 for the fixed lead foot on its own.
+		At 1 it inverts outright and the feet change places each stride --
+		forward, then back, then forward -- which is the grapevine a real
+		side-step falls into. At 0 one foot simply leads throughout, which
+		reads as a pose being carried sideways. At 0.5 it alternates
+		between staggered and square.
 	]]
-	StrafeCross = 0.25,
+	StrafeCross = 1,
 	StrafeWidth = 0.3,
 	StrafeLift = 0.2,
 	--[[
@@ -603,7 +600,7 @@ Config.WalkRanges = {
 	StepHeight = { 0, 2 },
 	StanceWidth = { -1, 1 },
 	StrafeStagger = { -1.5, 1.5 },
-	StrafeCross = { 0, 1.5 },
+	StrafeCross = { 0, 1 },
 	StrafeWidth = { 0, 1.5 },
 	StrafeLift = { 0, 1 },
 	DutyFactor = { 0.4, 0.9 },

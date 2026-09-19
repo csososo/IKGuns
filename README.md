@@ -299,10 +299,19 @@ and holding D did not.
 across the body, where they read as a single mass with nothing to clear each
 other by. So the feet stagger fore and aft — `StrafeStagger` puts the foot on
 the side you are heading towards in front and the other behind, giving a clear
-front leg and a clear back leg, which is what people do anyway. `StrafeCross` then swaps which
-foot leads on every plant, so the legs pass each other — forward, then back,
-then forward — which is the grapevine a real side-step falls into, and what
-makes it read as stepping rather than as a pose being carried sideways.
+front leg and a clear back leg, which is what people do anyway. `StrafeCross` says how far that
+offset alternates from stride to stride: at 1 it inverts outright and the feet
+change places — forward, then back, then forward — which is the grapevine a
+real side-step falls into.
+
+One flag for the whole body, applied with opposite sign to each foot, so the
+pair is always opposite by construction. A flag *per leg*, flipped when that
+leg planted, does not work: two flags flipping half a cycle apart drift in and
+out of agreement, so half the time both feet took the same offset and it moved
+them together rather than apart — and the same foot stayed in front on every
+step. It never swapped at all. The flip is on the left leg's landing because
+that is once per cycle; flipping on every landing is twice, which lands each
+foot back where it started.
 `StrafeWidth` and `StrafeLift` add the clearance: a little more room across, a little more
 height on the swing so the moving foot passes the planted one. All of it scales
 with how sideways the travel is *and* with the gait blend, so forward walking
