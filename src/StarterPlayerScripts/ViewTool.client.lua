@@ -39,7 +39,6 @@ local camera = workspace.CurrentCamera
 local active = false
 local yaw, pitch, distance = 0, math.rad(-10), 16
 local dragging = false
-local hadMouseLock = nil
 
 local KEYS = {
 	[Enum.KeyCode.W] = Vector3.new(0, 0, -1),
@@ -59,25 +58,45 @@ local function subject(): BasePart?
 end
 
 --[[
-	Roblox's own control module is what makes movement camera-relative, so
-	it has to be switched off rather than fought. Re-enabled on the way out,
-	otherwise the character is left unable to move at all.
+	Switch Roblox's own controls AND camera off, rather than fighting them.
+
+	The controls are what make movement camera-relative. The camera module
+	is what keeps taking the CameraType back, and it is also where shift
+	lock lives -- shift lock turns the character to face the camera every
+	frame, so with it running, swinging the camera round to the front just
+	drags the character round with it.
+
+	An earlier version tried to stop shift lock by writing
+	Player.DevEnableMouseLock, which the client cannot set. That threw
+	halfway through activation, after `active` had already been flipped but
+	before the render binding was made -- so the tool half-started, the
+	second press tried to shut down something that had never begun, and the
+	key looked dead. Disabling the module is both correct and callable from
+	here.
+
+	Both are re-enabled on the way out, or the character is left unable to
+	move and the camera stuck.
 ]]
-local function setControls(enabled: boolean)
+local function setDefaults(enabled: boolean)
 	local scripts = player:FindFirstChild("PlayerScripts")
 	local module = scripts and scripts:FindFirstChild("PlayerModule")
 	if not module then
+		warn("[ViewTool] no PlayerModule; cannot take over the controls.")
 		return
 	end
-	local ok, controls = pcall(function()
-		return require(module):GetControls()
-	end)
-	if ok and controls then
-		if enabled then
-			controls:Enable()
-		else
-			controls:Disable()
+	local ok, err = pcall(function()
+		local playerModule = require(module)
+		for _, part in { playerModule:GetControls(), playerModule:GetCameras() } do
+			if enabled then
+				part:Enable()
+			else
+				part:Disable()
+			end
 		end
+	end)
+	if not ok then
+		warn("[ViewTool] could not " .. (enabled and "restore" or "take over")
+			.. " the default controls: " .. tostring(err))
 	end
 end
 
@@ -95,11 +114,6 @@ local function update()
 	local root = subject()
 	if not root then
 		return
-	end
-
-	-- The camera module hands this back to Custom given the chance.
-	if camera.CameraType ~= Enum.CameraType.Scriptable then
-		camera.CameraType = Enum.CameraType.Scriptable
 	end
 
 	local focus = root.Position + Vector3.new(0, 1, 0)
@@ -130,29 +144,16 @@ local function setActive(on: boolean)
 
 	if active then
 		faceCharacter()
-		setControls(false)
-		--[[
-			Shift lock turns the character to face the camera every frame,
-			and it lives in the camera module, not the control module -- so
-			switching the controls off does not touch it. Left on, swinging
-			the camera round to the front simply drags the character round
-			with it, which is the opposite of watching it from the front.
-		]]
-		hadMouseLock = player.DevEnableMouseLock
-		player.DevEnableMouseLock = false
+		setDefaults(false)
 		camera.CameraType = Enum.CameraType.Scriptable
 		RunService:BindToRenderStep("ViewTool", Enum.RenderPriority.Camera.Value, update)
 		print("[ViewTool] on -- WASD is world-relative, right-drag to orbit, C to face.")
 	else
 		RunService:UnbindFromRenderStep("ViewTool")
-		if hadMouseLock ~= nil then
-			player.DevEnableMouseLock = hadMouseLock
-			hadMouseLock = nil
-		end
 		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 		camera.CameraType = Enum.CameraType.Custom
 		camera.CameraSubject = humanoid()
-		setControls(true)
+		setDefaults(true)
 		local human = humanoid()
 		if human then
 			human:Move(Vector3.zero, false)
@@ -208,7 +209,7 @@ end)
 player.CharacterAdded:Connect(function()
 	if active then
 		task.defer(function()
-			setControls(false)
+			setDefaults(false)
 			faceCharacter()
 		end)
 	end
