@@ -442,6 +442,27 @@ Config.Walk = {
 		turns them fully into the step.
 	]]
 	FootTurnToMove = 0.35,
+	-- Hard cap on that, degrees, however far off-axis the travel is.
+	MaxFootYaw = 25,
+	--[[
+		How far a PLANTED foot may end up from the body's facing, degrees,
+		before it is dragged round.
+
+		Keeping the landing heading through stance is right until you turn
+		while walking: a long stance against a fast turn leaves the foot
+		pointing where you used to be going. This is the pivot a real foot
+		does on the ball instead of staying welded to the floor.
+	]]
+	MaxFootLag = 35,
+	--[[
+		Minimum distance between the feet across the body, in studs.
+
+		Steps go along the direction of travel, which on its own sends BOTH
+		feet the same way -- strafing left, the right foot steps left too,
+		straight through the left leg. This is what stops a crossover and
+		turns it into a side-step where the trailing foot closes up.
+	]]
+	MinSeparation = 0.6,
 	-- Seconds for a foot in the air to swing round to its landing heading.
 	FootTurnTime = 0.12,
 	-- Seconds for the movement direction itself to follow a change of input.
@@ -495,6 +516,9 @@ Config.WalkRanges = {
 	ElbowSwing = { -60, 60 },
 	MaxStride = { 1.2, 4 },
 	FootTurnToMove = { 0, 1 },
+	MaxFootYaw = { 0, 60 },
+	MaxFootLag = { 5, 90 },
+	MinSeparation = { 0, 2 },
 	FootTurnTime = { 0.02, 0.5 },
 	TurnTime = { 0.02, 0.5 },
 	MinSpeed = { 0.1, 4 },

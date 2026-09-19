@@ -468,6 +468,31 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, pelvisC
 		leg.anchor = leg.anchor:Lerp(neutral, slide)
 	end
 
+	--[[
+		Neither foot may cross the body's midline.
+
+		Steps go along the direction of travel, and that on its own will
+		happily send BOTH feet the same way: strafing left, the right foot
+		steps left too, straight through the left leg. Turning does the same
+		to the inside foot. That is the leg intersection -- not a solver
+		failure, just a target nothing stopped from being on the wrong side.
+
+		Clamping the lateral offset rather than the whole position keeps the
+		step's reach along travel intact; only the sideways part is limited,
+		which is what turns a crossover into a proper side-step where the
+		trailing foot closes up instead of passing.
+	]]
+	local midline = pelvisCF.Position
+	local across = Vector3.new(place.X - midline.X, 0, place.Z - midline.Z)
+	local lateral = across:Dot(frame.RightVector)
+	local keepOut = cfg.MinSeparation * 0.5
+	local held = (side.sign > 0) and math.max(lateral, keepOut)
+		or math.min(lateral, -keepOut)
+	if math.abs(held - lateral) > 1e-5 then
+		place += frame.RightVector * (held - lateral)
+		leg.anchor = swinging and leg.anchor or place
+	end
+
 	-- Fold the whole gait back to the standing pose as the blend drops.
 	place = neutral:Lerp(place, self.blend)
 	lift *= self.blend
@@ -491,10 +516,25 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, pelvisC
 		and turning brings the feet round with you instead of leaving them
 		splayed where the last step left them.
 	]]
-	local aim = frame.LookVector:Lerp(moveDir, math.clamp(cfg.FootTurnToMove, 0, 1))
-	local wantRot = (aim.Magnitude > 1e-3)
-		and CFrame.lookAt(Vector3.zero, aim.Unit).Rotation
-		or frame.Rotation
+	--[[
+		As an ANGLE off the body's facing, not a lerp between two direction
+		vectors. Lerping them collapses to zero length when travel is
+		opposite the facing, and before that it points the feet backwards
+		when walking backwards -- which nobody does. Folding the yaw
+		difference into the front half throws the reversal away and keeps
+		only how far off-axis the travel is, so backwards behaves like
+		forwards and a diagonal gets a real, clampable angle.
+	]]
+	local off = math.atan2(moveDir:Dot(frame.RightVector), moveDir:Dot(frame.LookVector))
+	if off > math.pi * 0.5 then
+		off -= math.pi
+	elseif off < -math.pi * 0.5 then
+		off += math.pi
+	end
+	local maxYaw = math.rad(cfg.MaxFootYaw)
+	local footYaw = math.clamp(off * math.clamp(cfg.FootTurnToMove, 0, 1), -maxYaw, maxYaw)
+	local wantRot = frame.Rotation * CFrame.Angles(0, -footYaw, 0)
+
 	local turn = (self.dt or 0) / math.max(cfg.FootTurnTime, 1e-3)
 	if not swinging then
 		turn *= 1 - self.blend
@@ -502,6 +542,22 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, pelvisC
 	leg.footRot = leg.footRot
 		and leg.footRot:Lerp(wantRot, math.clamp(turn, 0, 1))
 		or wantRot
+
+	--[[
+		A planted foot may lag the body, but only so far.
+
+		Holding the landing heading for the whole of stance is right until
+		you turn while walking: a long stance against a fast turn leaves the
+		foot pointing where you used to be going, sometimes by most of a
+		right angle. Past the limit it is dragged round, which is exactly
+		the pivot a real foot does on the ball rather than staying welded.
+	]]
+	local lag = leg.footRot.LookVector
+	local lagYaw = math.atan2(lag:Dot(frame.RightVector), lag:Dot(frame.LookVector))
+	local maxLag = math.rad(cfg.MaxFootLag)
+	if math.abs(lagYaw) > maxLag then
+		leg.footRot *= CFrame.Angles(0, lagYaw - math.clamp(lagYaw, -maxLag, maxLag), 0)
+	end
 
 	--[[
 		Heel first going forwards, toe first going backwards, and neither

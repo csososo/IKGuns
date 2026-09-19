@@ -230,6 +230,22 @@ to meet the heading it is about to land on. At low blend it eases back to
 facing anyway, so turning on the spot brings the feet round rather than
 leaving them splayed.
 
+**Neither foot may cross the midline.** Steps along travel will otherwise
+send both feet the same way — strafing left, the right foot steps left too,
+straight through the left leg, and turning does the same to the inside foot.
+That is what leg intersection is: not a solver failure, just a target nothing
+stopped from being on the wrong side. `MinSeparation` clamps the lateral
+offset only, so the step keeps its reach along travel and a crossover becomes
+a side-step where the trailing foot closes up.
+
+Foot heading is an **angle off the facing**, clamped by `MaxFootYaw`, not a
+lerp between two direction vectors — that collapses to zero length when
+travel opposes facing, and before that it points the feet backwards when
+walking backwards. Folding the yaw difference into the front half discards
+the reversal and keeps only how far off-axis the travel is. A planted foot
+may lag the body by `MaxFootLag` before it is dragged round, which is the
+pivot a real foot does on the ball rather than staying welded through a turn.
+
 What stays deliberately body-relative: stance width, the `FootAhead` posture,
 the sway axis, the arm-swing plane, and the knee pole — knees bend forward
 relative to the body whichever way it is travelling.

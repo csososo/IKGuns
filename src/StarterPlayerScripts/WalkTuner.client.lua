@@ -35,7 +35,7 @@ local DIM = Color3.fromRGB(150, 150, 160)
 ]]
 local GROUPS = {
 	{ "Step", { "StepLength", "StepHeight", "DutyFactor", "StanceWidth", "FootAhead", "AnkleHeight", "MaxStride" } },
-	{ "Direction", { "FootTurnToMove", "FootTurnTime", "TurnTime" } },
+	{ "Direction", { "FootTurnToMove", "MaxFootYaw", "MaxFootLag", "MinSeparation", "FootTurnTime", "TurnTime" } },
 	{ "Foot roll", { "HeelStrikeAngle", "FlatAt", "HeelRiseAt", "ToeOffAngle", "ToeBend", "FootPitchScale" } },
 	{ "Body", { "BobHeight", "BobPhase", "SwayWidth", "SwayPhase", "LeanAngle" } },
 	{ "Pelvis", { "BodyYaw", "PelvisList", "PelvisListPhase", "ChestCounter" } },
