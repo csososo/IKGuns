@@ -159,38 +159,68 @@ on both `LeftUpperLeg` and `LeftLowerLeg`, and so on), which is exactly the
 alignment constraints need. Add a `HingeConstraint` across a knee's two
 attachments and the solver will obey it.
 
-## Legs: procedural, not IKControl
+## Legs: foot IK over an authored animation
 
-`ProceduralLegs.lua` drives the legs with an analytic two-bone solver and its
-own gait. `Config.Feet` (the IKControl foot chains) is off — both drive the
-same joints and would fight.
+The animation owns the stride, the timing, the lift and the weight.
+`FootIK.lua` only meets the ground, and on flat ground it does nothing at all.
 
-Two bones and a target is a triangle, so the law of cosines gives exactly one
-answer. `IKControl` solving hip-to-foot has far more freedom than a foot
-position needs, so it has a *family* of answers and flickers between them;
-taming that needs pole vectors and joint constraints aimed correctly, which in
-turn needs knowledge of the rig's joint axes.
+A fully procedural gait was tried and abandoned. It works, but humans have an
+extremely tuned sense for how people walk, so "nearly right" reads as wrong in
+a way it never does for a spider or a mech. An authored walk cycle took about
+an hour and immediately looked better than a day of procedural tuning.
+Procedural still wins for terrain adaptation, which is exactly what is left.
 
-The solver needs none of that. It computes each bone's desired **world** CFrame
-and converts via the Motor6D definition:
+### How the correction is derived
 
-    part1 = part0 * C0 * Transform * C1:Inverse()
-    so    Transform = (part0 * C0):Inverse() * part1 * C1
+The correction is **relative**: how much higher or lower the real ground is
+than the flat floor the animation assumes, which comes from the root part and
+`HipHeight`. On level ground that is zero, so the animation plays untouched.
+Setting an absolute foot height instead pins the foot to the floor, cancels
+the animation's own vertical motion, and straightens the legs out.
 
-That identity holds whatever orientation `C0` and `C1` carry, so there are no
-axis assumptions anywhere. Knee bend direction is read from the bind pose
-rather than configured.
+The animated pose is read by **forward kinematics through the joints'
+Transform values**, never from the live parts — the live parts still carry
+last frame's correction, so measuring from them measures this system's own
+output and compounds until the leg is pinned straight.
 
-### Stride and step rate
+Each foot gets a **plant factor**, because a foot the animation has lifted is
+deliberately in the air: correcting it fights the animation, and letting it
+vote on hip height sinks the body under a leg carrying no weight.
 
-A leg cannot reach further than it is long, so stride is capped
-(`StrideFraction` of leg span) and **frequency follows from speed**:
+That factor comes from the animation, never from the ground. Unity and Unreal
+bake a foot-contact curve into the clip and drive the IK weight from it; the
+raycast only decides *where* the ground is. Roblox clips carry no such curve,
+so it is recovered by comparing the two feet against the root: the lower one
+is taking the weight, and the other is as lifted as the animation lifted it.
+Measuring clearance above the surface instead inverts exactly when it matters
+— stepping up, the swinging foot passes low over the new surface and reads as
+planted, so the IK hauls it down mid-stride.
 
-    stride = planar / (4 * frequency)   =>   frequency = planar / (4 * stride)
+### Pelvis and foot roll
 
-Fixing the frequency instead is what breaks: at 16 studs/sec and 0.9 cycles/sec
-each step must cover 8.9 studs, which a 3-stud leg cannot do, so every target
-lands out of reach and the solve just clamps.
+The two legs' needs split into a shared part and a difference. The average
+becomes a hip drop; the difference becomes a **roll about the forward axis**,
+so one foot can reach lower while the other stays exactly where it was.
+Dropping by the worst of the two drags the leg that needed nothing down too.
+
+The spine **counter-rotates** against that roll (`CounterFraction`), because
+everything above the hips is rigidly attached to them. Full cancellation reads
+as stiff; a real back absorbs most but not all of it.
+
+When the target is beyond the leg's span the foot **rolls onto its toe**
+rather than snapping straight, which buys real extra reach.
+
+### Two mistakes worth not repeating
+
+**Everything below the hips is a chain.** A leg needing no ground correction
+still has to be solved whenever the pelvis moves, or it rides the roll and its
+foot lifts. "No correction" only means "leave it alone" when the pelvis is
+still.
+
+**A joint Transform is relative to its Part0 at solve time.** The root write
+moves the pelvis, so a leg's goal must be converted against the pelvis's
+post-move CFrame. Using the pre-move one applies the roll twice and throws the
+legs clear of the body.
 
 ## Ordering (the part that bites people)
 

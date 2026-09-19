@@ -34,6 +34,12 @@ FootIK.__index = FootIK
 
 local SIDES = { "Left", "Right" }
 
+local function nearlyEqual(a: CFrame, b: CFrame): boolean
+	return (a.Position - b.Position).Magnitude < 1e-5
+		and a.LookVector:Dot(b.LookVector) > 0.999999
+		and a.UpVector:Dot(b.UpVector) > 0.999999
+end
+
 function FootIK.new(rig)
 	local self = setmetatable({}, FootIK)
 	self.rig = rig
@@ -51,6 +57,47 @@ function FootIK.new(rig)
 		#ready > 0 and table.concat(ready, ", ") or "NONE"))
 
 	return self
+end
+
+--[[
+	The animation's own value for a joint, ignoring what we last wrote to it.
+
+	Every correction here is multiplicative, which is only safe if the
+	Animator rewrites that joint every frame. It does for joints the
+	animation keyframes -- but not for ones it never touches, like the root
+	joint the hip offset rides on. There, composing onto the live value
+	compounds the correction frame after frame until the pose is destroyed.
+
+	If the value changed since we wrote it, the Animator has been here and
+	that is the clean base. If it did not, nothing else is driving this joint,
+	so the stored clean base still stands.
+]]
+function FootIK:_cleanBase(motor: Motor6D): CFrame
+	self._clean = self._clean or {}
+	self._written = self._written or {}
+
+	local current = motor.Transform
+	local written = self._written[motor]
+	if written and nearlyEqual(current, written) then
+		return self._clean[motor] or CFrame.identity
+	end
+	self._clean[motor] = current
+	return current
+end
+
+-- Compose a joint-space delta onto the animation's value, not onto ours.
+function FootIK:_compose(motor: Motor6D, delta: CFrame)
+	local result = self:_cleanBase(motor) * delta
+	motor.Transform = result
+	self._written[motor] = result
+end
+
+-- Same, for a transformation expressed in world space.
+function FootIK:_composeWorld(motor: Motor6D, worldOp: CFrame)
+	local base = motor.Part0.CFrame * motor.C0
+	local result = (base:Inverse() * worldOp * base) * self:_cleanBase(motor)
+	motor.Transform = result
+	self._written[motor] = result
 end
 
 function FootIK:_measure()
@@ -100,10 +147,34 @@ end
 	hip outward reproduces the animated pose exactly, without the corrections
 	this module applied last frame.
 ]]
+--[[
+	The pelvis as the ANIMATION has it, with our own drop and roll undone.
+
+	The live pelvis carries last frame's correction, so forward kinematics
+	from it measures this system's own output: the correction moves the hips,
+	which moves the measured foot, which changes the correction. That loop is
+	what makes a leg buzz at a surface transition.
+]]
+function FootIK:_restParent(leg): CFrame
+	return (self.prevOp or CFrame.identity):Inverse() * leg.hip.Part0.CFrame
+end
+
 function FootIK:_animatedAnkle(leg): CFrame
-	local upper = leg.hip.Part0.CFrame * leg.hip.C0 * leg.hip.Transform * leg.hip.C1:Inverse()
-	local lower = upper * leg.knee.C0 * leg.knee.Transform * leg.knee.C1:Inverse()
-	return lower * leg.ankle.C0 * leg.ankle.Transform * leg.ankle.C1:Inverse()
+	--[[
+		Read each joint's CLEAN base, not its live Transform.
+
+		For any joint the animation does not rewrite every frame, the live
+		Transform is our own correction from last frame -- so chaining live
+		values measures this system's output and the result drifts away from
+		the real animated pose entirely.
+	]]
+	local hipT = self:_cleanBase(leg.hip)
+	local kneeT = self:_cleanBase(leg.knee)
+	local ankleT = self:_cleanBase(leg.ankle)
+
+	local upper = self:_restParent(leg) * leg.hip.C0 * hipT * leg.hip.C1:Inverse()
+	local lower = upper * leg.knee.C0 * kneeT * leg.knee.C1:Inverse()
+	return lower * leg.ankle.C0 * ankleT * leg.ankle.C1:Inverse()
 end
 
 --[[
@@ -113,13 +184,28 @@ end
 	backwards gives it. Deriving the correction against this, rather than
 	against an absolute height, is what makes it zero on level ground.
 ]]
-function FootIK:_groundPlaneY(): number?
+--[[
+	The ground the body as a whole is standing on.
+
+	Measured by raycasting under the root, NOT computed from the root's
+	height. Deriving it from root.Position.Y means every bob of the character
+	shifts the reference, which shows up as both feet reporting an identical
+	phantom correction at the same instant -- the giveaway being that real
+	terrain never changes under both feet simultaneously.
+
+	Falls back to the computed plane if nothing is underneath, so a character
+	over a gap still behaves.
+]]
+function FootIK:_groundPlaneY(params: RaycastParams): number?
 	local root = self.rig.parts.Root
 	if not root then
 		return nil
 	end
 	local hipHeight = self.rig.humanoid and self.rig.humanoid.HipHeight or 0
-	return root.Position.Y - root.Size.Y * 0.5 - hipHeight
+	local computed = root.Position.Y - root.Size.Y * 0.5 - hipHeight
+
+	local hit = self:_sampleGround(Vector3.new(root.Position.X, computed, root.Position.Z), params)
+	return hit or computed
 end
 
 function FootIK:Update(dt: number)
@@ -130,12 +216,35 @@ function FootIK:Update(dt: number)
 
 	local rig = self.rig
 	local frame = rig:GetYawFrame()
-	local basePlaneY = self:_groundPlaneY()
-	if not (frame and basePlaneY) then
+	if not frame then
 		return
 	end
 
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { rig.character }
+	params.IgnoreWater = true
+
+	local measuredPlane = self:_groundPlaneY(params)
+	if not measuredPlane then
+		return
+	end
+
+	-- Filter the reference before anything depends on it: every correction
+	-- and the pelvis roll are all measured against this one number.
+	self.basePlane = self.basePlane
+		and Util.damp(self.basePlane, measuredPlane, cfg.PlaneSmoothTime, dt)
+		or measuredPlane
+	-- Snap rather than crawl if it has moved a long way, e.g. after a fall.
+	if math.abs(measuredPlane - self.basePlane) > 2 then
+		self.basePlane = measuredPlane
+	end
+	local basePlaneY = self.basePlane
+
 	self.dt = dt
+	-- Last frame's pelvis correction, so this frame can measure the animation
+	-- with it removed rather than reading back its own output.
+	self.prevOp = self.rootOp or CFrame.identity
 	self.rootOp = CFrame.identity
 	local grounded = true
 	local humanoid = rig.humanoid
@@ -146,27 +255,34 @@ function FootIK:Update(dt: number)
 			and state ~= Enum.HumanoidStateType.Jumping
 	end
 
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = { rig.character }
-	params.IgnoreWater = true
+	--[[
+		Measure both legs before weighing either.
 
-	local lowest = 0
+		How planted a foot is comes from comparing it against the other foot,
+		so neither answer exists until both have been read.
+	]]
+	local datum
 	for _, side in SIDES do
 		local leg = self.legs[side]
 		if leg then
 			leg.wanted = nil
-			if grounded then
-				self:_prepare(leg, basePlaneY, params)
-				--[[
-					Weight the hip's vote by the same factor as the leg's own
-					correction, so a foot inside the dead zone or up in the
-					air contributes nothing. Using the raw delta instead means
-					a HipHeight that is off by a hundredth sinks the hips
-					permanently, because nothing filters it out.
-				]]
-				lowest = math.min(lowest, leg.delta * leg.weight)
+			self:_measureLeg(leg, basePlaneY, params)
+			if leg.wanted and (not datum or leg.bodyY < datum) then
+				datum = leg.bodyY
 			end
+		end
+	end
+
+	--[[
+		Weight the hip's vote by the same factor as the leg's own correction,
+		so a foot inside the dead zone or up in the air contributes nothing.
+		Using the raw delta instead means a HipHeight that is off by a
+		hundredth sinks the hips permanently, because nothing filters it out.
+	]]
+	for _, side in SIDES do
+		local leg = self.legs[side]
+		if leg and leg.wanted then
+			self:_weighLeg(leg, datum, grounded)
 		end
 	end
 
@@ -181,7 +297,9 @@ function FootIK:Update(dt: number)
 	local dL = (self.legs.Left and self.legs.Left.delta * self.legs.Left.weight) or 0
 	local dR = (self.legs.Right and self.legs.Right.delta * self.legs.Right.weight) or 0
 	local wantDrop = math.min(0, (dL + dR) * 0.5) * cfg.HipInfluence
-	self.hipDrop = Util.damp(self.hipDrop, grounded and wantDrop or 0, cfg.SmoothTime, dt)
+	wantDrop = math.clamp(grounded and wantDrop or 0,
+		self.hipDrop - cfg.MaxHipRate * dt, self.hipDrop + cfg.MaxHipRate * dt)
+	self.hipDrop = Util.damp(self.hipDrop, wantDrop, cfg.SmoothTime, dt)
 
 	local wantRoll = 0
 	if cfg.HipRoll and grounded then
@@ -189,7 +307,9 @@ function FootIK:Update(dt: number)
 		wantRoll = math.clamp(math.atan2(dL - dR, math.max(cfg.HipWidth, 0.1)),
 			-cfg.MaxHipRoll, cfg.MaxHipRoll)
 	end
-	self.hipRoll = Util.damp(self.hipRoll or 0, wantRoll, cfg.SmoothTime, dt)
+	local roll = self.hipRoll or 0
+	wantRoll = math.clamp(wantRoll, roll - cfg.MaxRollRate * dt, roll + cfg.MaxRollRate * dt)
+	self.hipRoll = Util.damp(roll, wantRoll, cfg.SmoothTime, dt)
 
 	--[[
 		Move the hips for REAL, by translating the root joint.
@@ -207,7 +327,7 @@ function FootIK:Update(dt: number)
 			op *= Util.rotateAboutWorld(pivot, frame.LookVector, self.hipRoll)
 		end
 		if math.abs(self.hipDrop) > 1e-4 or math.abs(self.hipRoll) > 1e-4 then
-			rootMotor.Transform = Util.applyWorldToJoint(rootMotor, op)
+			self:_composeWorld(rootMotor, op)
 		end
 		-- Remember it: the legs have to solve against where the hips ARE now,
 		-- not where they were before this write.
@@ -228,7 +348,7 @@ function FootIK:Update(dt: number)
 			if motor.Part0 then
 				local pivot = (motor.Part0.CFrame * motor.C0).Position
 				local share = -self.hipRoll * cfg.CounterFraction * (joint.weight or 0)
-				motor.Transform = Util.applyWorldToJoint(motor,
+				self:_composeWorld(motor,
 					Util.rotateAboutWorld(pivot, frame.LookVector, share))
 			end
 		end
@@ -237,15 +357,69 @@ function FootIK:Update(dt: number)
 	for _, side in SIDES do
 		self:_apply(self.legs[side], frame)
 	end
+
+	if Config.Debug then
+		self._nextLog = self._nextLog or 0
+		if os.clock() >= self._nextLog then
+			self._nextLog = os.clock() + 0.5
+			local function fmt(side)
+				local leg = self.legs[side]
+				if not leg then return side .. "=none" end
+				return ("%s raw=%+.3f d=%+.3f w=%.2f plant=%.2f lift=%.2f"):format(
+					side:sub(1, 1), leg.raw or 0, leg.delta, leg.weight,
+					leg.plant or 0, leg.lift or 0)
+			end
+			print(("[FootIK] plane=%.2f drop=%+.3f roll=%+.1fdeg | %s | %s"):format(
+				self.basePlane or 0, self.hipDrop, math.deg(self.hipRoll or 0),
+				fmt("Left"), fmt("Right")))
+		end
+	end
 end
 
--- Work out this leg's correction, without writing anything yet.
-function FootIK:_prepare(leg, basePlaneY: number, params: RaycastParams)
+--[[
+	Highest ground under the foot, sampled across its footprint.
+
+	Returns the surface height and the normal of whichever sample won, or nil
+	if nothing is underneath at all.
+]]
+function FootIK:_sampleGround(centre: Vector3, params: RaycastParams): (number?, Vector3)
+	local cfg = Config.FootIK
+	local r = cfg.SampleRadius
+	local down = Vector3.yAxis * -(cfg.RayUp + cfg.RayDown)
+
+	local best, bestNormal = nil, Vector3.yAxis
+	for _, offset in {
+		Vector3.zero,
+		Vector3.new(r, 0, 0), Vector3.new(-r, 0, 0),
+		Vector3.new(0, 0, r), Vector3.new(0, 0, -r),
+	} do
+		local hit = workspace:Raycast(centre + offset + Vector3.yAxis * cfg.RayUp, down, params)
+		if hit and (not best or hit.Position.Y > best) then
+			best, bestNormal = hit.Position.Y, hit.Normal
+		end
+	end
+	return best, bestNormal
+end
+
+--[[
+	Read where the animation has put this foot, and how far its ground differs
+	from the reference. Nothing is weighed here: that needs both legs.
+]]
+function FootIK:_measureLeg(leg, basePlaneY: number, params: RaycastParams)
 	local cfg = Config.FootIK
 	local animCF = self:_animatedAnkle(leg)
+	leg.animCF = animCF
 
-	local hit = workspace:Raycast(animCF.Position + Vector3.yAxis * cfg.RayUp,
-		Vector3.yAxis * -(cfg.RayUp + cfg.RayDown), params)
+	--[[
+		The animated foot's height relative to the BODY.
+
+		This is the animation's own foot curve, recovered: a function of where
+		the clip is in its cycle and of nothing else. No terrain can move it.
+	]]
+	local root = self.rig.parts.Root
+	leg.bodyY = root and (animCF.Position.Y - root.Position.Y) or 0
+
+	local hit, normal = self:_sampleGround(animCF.Position, params)
 	if not hit then
 		leg.delta = 0
 		return
@@ -256,34 +430,70 @@ function FootIK:_prepare(leg, basePlaneY: number, params: RaycastParams)
 		level ground, positive on a step up, negative over a drop. Note what
 		it does not depend on: where the foot currently is.
 	]]
-	local raw = math.clamp(hit.Position.Y - basePlaneY, -cfg.MaxStepDown, cfg.MaxStepUp)
+	local raw = math.clamp(hit - basePlaneY, -cfg.MaxStepDown, cfg.MaxStepUp)
 
 	--[[
 		Smooth both the correction and its weight. Stepping onto or off a
 		ledge changes the raycast result discontinuously, and applying that
 		jump straight to the joints is what makes a leg snap for a frame.
 	]]
-	leg.delta = Util.damp(leg.delta, raw, cfg.SmoothTime, self.dt)
+	-- Rate-limit first, then smooth: a surface that changes faster than the
+	-- smoothing can absorb would otherwise still arrive as a jolt.
+	local maxStep = cfg.MaxCorrectionRate * self.dt
+	local limited = math.clamp(raw, leg.delta - maxStep, leg.delta + maxStep)
+	leg.delta = Util.damp(leg.delta, limited, cfg.SmoothTime, self.dt)
 
-	--[[
-		Is this foot planted, or has the animation lifted it?
+	leg.normal = normal
+	leg.raw = raw
+	leg.wanted = true
+end
 
-		Clearance above the surface tells us: at rest it equals AnkleHeight,
-		and mid-swing it is higher. A lifted foot is meant to be in the air,
-		so correcting it fights the animation -- and letting it vote on hip
-		height sinks the body under a leg that is not even carrying weight.
-	]]
-	local clearance = animCF.Position.Y - hit.Position.Y
-	local lift = math.max(0, clearance - cfg.AnkleHeight)
+--[[
+	How much of this leg's correction to apply.
+
+	Whether a foot is planted or swinging is a fact about the ANIMATION, and
+	the reference implementations all treat it as one: Unity and Unreal bake a
+	foot-contact curve into the clip and drive the IK weight from that. The
+	raycast decides only WHERE the ground is -- never whether the foot is on
+	it.
+
+	Roblox animations carry no such curve, so it is recovered by comparing the
+	two feet. In a walk cycle the lower foot is the one taking the weight, and
+	the other is as lifted as the animation has lifted it. Both are measured
+	against the same root, so that comparison is immune to the terrain and to
+	the body's own bob alike.
+
+	Every ground-derived version of this got it backwards exactly when it
+	mattered. Walking onto something higher, the swinging foot passes low over
+	the new surface, its clearance collapses, and it reads as planted -- so
+	the IK hauls it down onto the step mid-stride while the animation is still
+	lifting it. Measuring against a smoothed reference plane only delays that,
+	because the plane climbs the step too.
+]]
+function FootIK:_weighLeg(leg, datum: number?, grounded: boolean)
+	local cfg = Config.FootIK
+	local lift = math.max(0, leg.bodyY - (datum or leg.bodyY) - cfg.PlantSlack)
 	local plant = 1 - math.clamp(lift / math.max(cfg.LiftThreshold, 1e-4), 0, 1)
 
 	local zone = math.max(cfg.DeadZone, 1e-4)
 	local wantWeight = math.clamp((math.abs(leg.delta) - zone) / zone, 0, 1) * plant
-	leg.weight = Util.damp(leg.weight, wantWeight, cfg.BlendTime, self.dt)
 
-	leg.normal = hit.Normal
-	leg.animCF = animCF
-	leg.wanted = true
+	--[[
+		In the air the IK has nothing to say, but it has to stop saying it
+		GRADUALLY.
+
+		Skipping the update entirely, as this did, freezes the legs holding
+		whatever correction they had. A short step up can drop the Humanoid
+		into Freefall for a handful of frames on the way over the lip, so that
+		stall lands in the middle of the transition it was supposed to smooth.
+	]]
+	if not grounded then
+		wantWeight = 0
+	end
+
+	leg.weight = Util.damp(leg.weight, wantWeight, cfg.BlendTime, self.dt)
+	leg.plant = plant
+	leg.lift = lift
 end
 
 function FootIK:_apply(leg, frame: CFrame)
@@ -293,11 +503,26 @@ function FootIK:_apply(leg, frame: CFrame)
 
 	local cfg = Config.FootIK
 	local w = leg.weight
-	if w <= 1e-3 then
-		return -- nothing to correct; leave the animation completely alone
+
+	--[[
+		A leg with no ground correction of its own STILL has to be solved
+		whenever the pelvis has moved.
+
+		Everything below the hips is a chain: rolling the pelvis to give one
+		leg more room lifts the other leg with it, foot and all. Keeping that
+		foot where it was means actively re-solving the leg against a hip that
+		has moved -- skipping it is what makes the opposite foot rise.
+
+		Only when the pelvis is still is "no correction" the same as "leave it
+		alone".
+	]]
+	local hipMoved = math.abs(self.hipDrop) > 1e-4 or math.abs(self.hipRoll or 0) > 1e-4
+	if w <= 1e-3 and not hipMoved then
+		return
 	end
 
-	local hipBase = leg.hip.Part0.CFrame * leg.hip.C0
+	local restParent = self:_restParent(leg)
+	local hipBase = restParent * leg.hip.C0
 	local hipPos = hipBase.Position
 	local pole = frame.LookVector
 
@@ -325,6 +550,12 @@ function FootIK:_apply(leg, frame: CFrame)
 		each foot displaced by however far its hip just moved.
 	]]
 	local movedHip = (self.rootOp or CFrame.identity) * hipPos
+
+	--[[
+		With w at zero this is just the animated foot position, so the solve
+		holds the foot exactly where the animation put it while the hip moves
+		underneath it. That is the compensation.
+	]]
 	local target = leg.animCF.Position + Vector3.yAxis * (leg.delta * w)
 	local goalUpper, goalLower, tipPos = TwoBone.solve(movedHip, target, leg.bone, pole)
 	if not goalUpper then
@@ -335,13 +566,27 @@ function FootIK:_apply(leg, frame: CFrame)
 		return (parentCF * motor.C0):Inverse() * worldCF * motor.C1
 	end
 
-	local hipBaseJoint = jointOf(leg.hip, leg.hip.Part0.CFrame, baseUpper)
-	local hipGoalJoint = jointOf(leg.hip, leg.hip.Part0.CFrame, goalUpper)
-	leg.hip.Transform *= hipBaseJoint:Inverse() * hipGoalJoint
+	--[[
+		The goal is expressed relative to where the Hip part ENDS UP, not
+		where it is now.
+
+		A joint Transform is applied relative to its Part0 at solve time, and
+		Part0 here is the pelvis, which the root write above has already
+		moved. Converting against the pre-move pelvis bakes that movement into
+		the leg as well, so the roll lands twice and the legs are thrown
+		clear of the body.
+
+		The base solve deliberately keeps the pre-move pelvis: it represents
+		the animation's pose, which was authored against an untilted one.
+	]]
+	local movedParent = (self.rootOp or CFrame.identity) * restParent
+	local hipBaseJoint = jointOf(leg.hip, restParent, baseUpper)
+	local hipGoalJoint = jointOf(leg.hip, movedParent, goalUpper)
+	self:_compose(leg.hip, hipBaseJoint:Inverse() * hipGoalJoint)
 
 	local kneeBaseJoint = jointOf(leg.knee, baseUpper, baseLower)
 	local kneeGoalJoint = jointOf(leg.knee, goalUpper, goalLower)
-	leg.knee.Transform *= kneeBaseJoint:Inverse() * kneeGoalJoint
+	self:_compose(leg.knee, kneeBaseJoint:Inverse() * kneeGoalJoint)
 
 	--[[
 		If the target is further than the leg can span, roll onto the toe
@@ -363,7 +608,7 @@ function FootIK:_apply(leg, frame: CFrame)
 		leg.roll = Util.damp(leg.roll, wantRoll, cfg.BlendTime, self.dt)
 
 		if leg.roll > 1e-4 then
-			leg.heel.Transform = Util.applyWorldToJoint(leg.heel,
+			self:_composeWorld(leg.heel,
 				Util.rotateAboutWorld(toePos, frame.RightVector, cfg.RollSign * leg.roll))
 		end
 	end
@@ -376,8 +621,10 @@ function FootIK:_apply(leg, frame: CFrame)
 			or CFrame.identity
 		local footRot = tilt * frame.Rotation * leg.bindAnkleRot
 		local ankleCF = CFrame.new(tipPos) * footRot * CFrame.new(-leg.ankleInPart)
-		leg.ankle.Transform = leg.ankle.Transform:Lerp(
-			jointOf(leg.ankle, goalLower, ankleCF), w)
+		local ankleBase = self:_cleanBase(leg.ankle)
+		local ankleResult = ankleBase:Lerp(jointOf(leg.ankle, goalLower, ankleCF), w)
+		leg.ankle.Transform = ankleResult
+		self._written[leg.ankle] = ankleResult
 	end
 end
 

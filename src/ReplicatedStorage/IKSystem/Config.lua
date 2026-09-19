@@ -140,8 +140,9 @@ Config.Aim = {
 	Analytic two-bone leg IK with a built-in gait, replacing the IKControl
 	legs, replacing the IKControl foot chains entirely.
 
-	AnkleHeight is the only measured value: how far the ankle joint sits above
-	the ground when standing. Raise it if the feet sink, lower it if they float.
+	PlantSlack and LiftThreshold are the only tuned values, and both describe
+	the ANIMATION rather than the rig: how far it lifts a swinging foot above
+	the one carrying the weight.
 ]]
 --[[
 	Foot IK layered on an authored animation. The animation owns the stride,
@@ -156,11 +157,17 @@ Config.FootIK = {
 	MaxStepUp = 1.2,   -- clamps, so a foot never snaps somewhere absurd
 	MaxStepDown = 1.5,
 
-	AnkleHeight = 0.2, -- ankle joint height above the ground when standing
+	--[[
+		Slack before a foot counts as lifting at all, in studs above the other
+		foot. Only has to absorb the wobble of an animation that never puts
+		both feet at exactly the same height, so it is small: the datum is the
+		other foot, measured live, not a standing height guessed in advance.
+	]]
+	PlantSlack = 0.1,
 
 	--[[
 		How far the animation has to lift a foot before it counts as swinging
-		rather than planted, in studs above its standing height.
+		rather than planted, in studs above the foot taking the weight.
 
 		A swinging foot must not be corrected and must not influence the hips:
 		it is deliberately in the air, so pulling it down to the ground fights
@@ -209,7 +216,13 @@ Config.FootIK = {
 
 		If the heel digs DOWN instead of lifting, flip RollSign.
 	]]
-	FootRoll = true,
+	--[[
+		Off until the roll direction is confirmed on this rig. It engages
+		exactly when a leg over-extends -- which is when crossing a step -- so
+		a wrong RollSign shows up as a kick at the worst moment. Turn it on
+		deliberately and watch one step-down.
+	]]
+	FootRoll = false,
 	HeelJoint = "%sHeelBase",
 	ToeJoint = "%sForefoot",
 	MaxFootRoll = math.rad(40),
@@ -222,6 +235,39 @@ Config.FootIK = {
 
 	RayUp = 2,
 	RayDown = 4,
+
+	--[[
+		Sample the ground at several points under the foot and take the
+		highest, rather than firing one ray at its centre.
+
+		One ray is discontinuous at a step edge: it flips between the top and
+		the floor as the foot crosses, and flickers if the foot sits near the
+		lip. Several samples make the crossing gradual -- the leading corner
+		finds the step first -- which is also closer to how a real foot meets
+		an edge.
+	]]
+	SampleRadius = 0.3,
+
+	--[[
+		Cap on how fast the correction may change, in studs per second. A
+		backstop for surfaces that change faster than smoothing can absorb.
+	]]
+	MaxCorrectionRate = 6,
+
+	--[[
+		Smoothing on the reference ground plane itself.
+
+		Straddling a level change puts the root right over the edge, so the
+		measurement flips between the two surfaces as you move. That shifts
+		BOTH feet's corrections at once and swings the pelvis roll with them.
+		Filtering the reference absorbs the flip-flop while still tracking a
+		genuine change in level within a fraction of a second.
+	]]
+	PlaneSmoothTime = 0.15,
+
+	-- Cap on how fast the pelvis may move, studs and radians per second.
+	MaxHipRate = 3,
+	MaxRollRate = math.rad(60),
 }
 
 
@@ -253,6 +299,6 @@ Config.RelaxIdleChains = false
 
 -- Writes per-frame IK state to attributes on the character so
 -- tools/DiagnoseMovement.lua can read it. Free to leave off.
-Config.Debug = false
+Config.Debug = true
 
 return Config

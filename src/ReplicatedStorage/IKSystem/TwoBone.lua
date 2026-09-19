@@ -55,16 +55,26 @@ export type Bone = {
 	Returns the upper and lower bones' world CFrames and the tip position,
 	or nil if the limb is degenerate.
 ]]
-function TwoBone.solve(rootPos: Vector3, targetPos: Vector3, bone: Bone, poleWorld: Vector3)
+function TwoBone.solve(rootPos: Vector3, targetPos: Vector3, bone: Bone, poleWorld: Vector3, margin: number?)
 	local toTarget = targetPos - rootPos
 	if toTarget.Magnitude < EPS then
 		return nil
 	end
 
-	-- Clamp into the span the bones can actually cover, leaving a sliver so
-	-- the triangle never degenerates into a straight line.
-	local lo = math.abs(bone.l1 - bone.l2) + 1e-3
-	local hi = bone.l1 + bone.l2 - 1e-3
+	--[[
+		Clamp into the span the bones can cover, keeping a real margin at both
+		ends rather than a token one.
+
+		At full extension the middle joint's offset from the line between the
+		ends goes to zero, so which way the limb bends becomes numerically
+		undefined and can flip between frames. Stepping down extends a leg
+		almost straight, which is exactly when that shows up as a twitch.
+		Holding a fraction of bend in reserve keeps the direction well defined.
+	]]
+	local span = bone.l1 + bone.l2
+	local m = margin or 0.02
+	local lo = math.abs(bone.l1 - bone.l2) + span * m
+	local hi = span * (1 - m)
 	local d = math.clamp(toTarget.Magnitude, lo, hi)
 	local dir = toTarget.Unit
 

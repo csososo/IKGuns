@@ -136,9 +136,22 @@ local function setup(character: Model)
 
 	active = { tracks = tracks, current = nil }
 
-	local root = character:FindFirstChild("HumanoidRootPart")
+	--[[
+		Wait for the root part; do not just look for it.
+
+		CharacterAdded fires as soon as the model is parented and the limbs
+		stream in after, so FindFirstChild here can return nil. Captured once
+		as nil, the render callback below then bails on every frame forever --
+		animations load correctly and simply never play, with no error.
+	]]
+	local root = character:WaitForChild("HumanoidRootPart", 5)
+	if not root then
+		warn("[CharacterAnimator] no HumanoidRootPart; cannot drive animations.")
+		return
+	end
+
 	RunService:BindToRenderStep("CharacterAnimator", Enum.RenderPriority.Character.Value - 2, function()
-		if not (active and root and root.Parent) then
+		if not (active and root.Parent) then
 			return
 		end
 
