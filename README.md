@@ -264,11 +264,20 @@ harmless — the body just alternates. Strafing it is not: which leg leads
 depends on which way you are going, so one direction has the weight shift
 aligned with the lead foot and the other has it half a cycle out, aligned
 with the trailing foot. That is strafing one way visibly moving the body more
-than the other. They are sinusoids, so negating one shifts it half a cycle,
-which is exactly the correction; `1 - |lateral| + lateral` is 1 forward, 1
-strafing right and -1 strafing left, passing smoothly through the diagonals.
-Bob is excluded on purpose — it runs at twice the frequency, once per
-footfall, so half a cycle leaves it unchanged.
+than the other. Corrected by shifting the body phase half a
+cycle, not by negating the sinusoids: negating is the same shift for a pure
+sine, but as a multiplier it has to pass through zero to change sign, and that
+zero lands in the middle of the left diagonals where sway, yaw and list would
+all vanish. Sliding the phase keeps full amplitude the whole way round. Bob is
+excluded on purpose — it runs at twice the frequency, once per footfall, so
+half a cycle leaves it unchanged.
+
+**Both strafe stagger terms are signed by travel**, not merely scaled by how
+sideways it is. `StrafeCross` used the unsigned amount at first, so it added
+to `StrafeStagger` going one way and cancelled it going the other — 1.20 studs
+of fore/aft spread strafing left against 0.20 strafing right. A spread that
+large reads as the whole body being turned, which is why holding A swung it
+and holding D did not.
 
 **Strafing gets its own posture.** Side-stepping puts both feet on one line
 across the body, where they read as a single mass with nothing to clear each
