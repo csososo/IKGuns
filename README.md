@@ -3,36 +3,36 @@
 Animation-driven character with IK corrections layered on top. Configured for
 the **Wumig** rig.
 
-## Why not full IK
+## Where this landed
 
-Full procedural locomotion means hand-writing step timing, foot placement
-prediction, weight shift, hip sway and counter-swinging arms. It reads as
-"floaty robot" until all of it is right. Animations already solve that.
+It started as animations with IK corrections and ended as a fully procedural
+gait, having been both. Both paths still work and `Config.Gait` picks one;
+the argument for each is under **Two gaits** below.
 
-So: **animations own the pose, IK fixes what animations cannot know.**
+| Job | `"procedural"` | `"animation"` |
+| --- | --- | --- |
+| Idle / walk | `ProceduralWalk.lua` | authored clips |
+| Feet on real ground, slopes, stairs | `ProceduralWalk.lua` | `FootIK.lua` |
+| Hips dropping so a leg can reach | `ProceduralWalk.lua` | `FootIK.lua` |
+| Chest and head aiming at the camera | `Aim.lua` | `Aim.lua` |
+| Support hand on the weapon foregrip | `Arms` (off) | `Arms` (off) |
 
-| Job | Owner |
-| --- | --- |
-| Idle / walk / run / jump | Animations |
-| Feet on real ground, slopes, stairs | IK |
-| Hips dropping so a leg can reach | IK |
-| Chest and head aiming at the camera | IK |
-| Support hand on the weapon foregrip | IK |
+Legs are solved analytically by `TwoBone.lua` rather than by `IKControl`. Two
+bones and a target form a triangle, so the law of cosines gives the answer
+outright — there is exactly one solution per bend direction, which is why it
+cannot flicker the way a general chain solver can when asked an
+underdetermined question. `IKControl` is still used for the arms and head.
 
-Solving uses Roblox's built-in `IKControl`. You supply targets, the engine
-supplies joint angles, and it blends with the `Animator` natively.
+## What the rig needs
 
-## Before this will do anything
-
-Two things the rig is missing:
-
-1. **No `Animator` under the `Humanoid`.** `IKControl` is solved inside the
-   animation pipeline and needs one. The code creates a temporary one and
-   warns, but add a real `Animator` to the rig on the server so it replicates.
-2. **No animations at all.** There is no `Animate` script and no joint names
-   that Roblox's default one would recognise, so you cannot borrow the stock
-   animations — the rig needs its own idle and walk authored in the Animation
-   Editor. `TestLocomotion` stands in until then (see below).
+- **An `Animator` under the `Humanoid`.** `CharacterSetup.server.lua` adds one
+  if it is missing, but a real one on the rig replicates properly.
+- **`Humanoid.HipHeight` set** (2.7 for this rig) and automatic scaling off.
+  `CharacterSetup` enforces both, because they were observed reverting during
+  spawn. With HipHeight at 0 the rig's feet sit 2.7 studs underground and the
+  Humanoid never registers a floor.
+- **Nothing collidable but the root.** Every other part is IK-driven, and a
+  limb in the floor drags the whole character.
 
 ## Rig mapping
 
@@ -64,7 +64,9 @@ whole upper body, so the torso tips while two foot controls fight over the same
 joint. It reads as a violent full-body spasm, not as a leg problem.
 
 `Config.Only` is a bisect switch for exactly this kind of hunt: set it to
-`"none"`, `"feet"`, `"aim"` or `"arms"` to run one subsystem at a time.
+`"none"`, `"legs"`, `"aim"` or `"arms"` to run one subsystem at a time.
+Make sure it really covers what you are ruling out — it once gated aim and
+arms but not the legs, which made `"none"` read as evidence when it was not.
 
 Two rig details worth knowing:
 
@@ -75,9 +77,9 @@ Two rig details worth knowing:
   `HumanoidRootPart → MainMover → Hip`, so removing it means re-jointing the
   root. Hip height rides on `MainMoverJoint` (`MainMover → Hip`) and is applied
   in world space, so no assumption is made about any joint being upright.
-- **The foot is three parts** (`Ankle → Heel → Forefoot`). IK ends at the heel;
-  the toe stays animation-driven. If you want toe roll on slopes later, that is
-  a second small `IKControl` on the `LeftForefoot` joint, not a rewrite.
+- **The foot is three parts** (`Ankle → Heel → Forefoot`). The leg IK ends at
+  the ankle plate; the heel joint carries the ankle rocker and the forefoot
+  joint the toe bend, which is what gives heel strike and toe-off.
 
 Aim rotation is split across two spine joints (`HipSpine` 35%, `Waist` 65%) so
 the turn reads as the whole torso instead of the chest shearing off the hips.
@@ -89,40 +91,20 @@ Weights are in `Config.Aim.SpineJoints`.
    - `src/ReplicatedStorage/IKSystem/` → a ModuleScript named `IKSystem` in
      `ReplicatedStorage`, with the others as children (`init.lua` is the module
      itself).
-   - `src/StarterPlayerScripts/IKController.client.lua` → a LocalScript in
-     `StarterPlayer > StarterPlayerScripts`.
-2. Add an `Animator` to the `Humanoid`.
-3. Press play and walk onto a slope — feet should tilt, hips should dip.
+   - `src/StarterPlayerScripts/` → LocalScripts in
+     `StarterPlayer > StarterPlayerScripts`: `IKController` drives the system,
+     `CharacterAnimator` plays the clips, `WalkTuner` is the gait panel.
+   - `src/ServerScriptService/CharacterSetup.server.lua` → a Script in
+     `ServerScriptService`.
+2. Press play. Walk onto a slope — feet should tilt and meet it.
+3. Press `]` for the gait tuner.
+
+New top-level mappings in `default.project.json` are read at startup, so
+restart `rojo serve` after adding one. Files inside a folder that is already
+mapped sync without a restart.
 
 Retargeting to a different rig: run `tools/DumpRig.lua` (select the rig in the
 Explorer, paste into the command bar) and correct `Config.lua` from the output.
-
-## TestLocomotion (throwaway)
-
-`TestLocomotion.lua` is a crude procedural walk that exists **only so the IK
-has something to correct** while you have no animations. Delete the file and
-`Config.TestLocomotion`, or set `Enabled = false`, the moment you have a real
-walk cycle.
-
-It drives feet and hands as world-space targets rather than joint rotations,
-which is deliberate:
-
-- It needs to know nothing about how this rig's `C0`s are oriented, so there
-  are no guessed rotation axes to get wrong.
-- It gives `FootPlanter` an explicit "where the pose wants this foot", instead
-  of `FootPlanter` reading the live part and feeding its own previous output
-  back in. That feedback is harmless standing still but can make the hip offset
-  hunt while walking. A real animation should supply the same thing — swap the
-  `SetPoseSource` callback in `init.lua` when you get there.
-
-The gait is a 0.5 duty-factor walk: one foot sweeps linearly backwards along
-the ground while the other arcs forward through the air. Stride length is
-derived from actual velocity (`stride = speed / (4 × Frequency)`), so the
-stance foot travels at exactly ground speed and the feet do not skate.
-
-What it will not do: turning, strafing, jumping, running as a distinct gait, or
-anything resembling weight. It is a test fixture, not a shortcut past authoring
-animations.
 
 ## Weapons
 
@@ -136,12 +118,13 @@ attribute `IsWeapon = true`.
 
 ## Tuning
 
-Everything is in `Config.lua`. Worth touching first:
+The procedural gait is tuned live — press `]` in game, see **Tuning it**
+below. Everything else is in `Config.lua`:
 
 - `Aim.MaxYaw` — how far the torso twists before the legs have to turn.
-- `Feet.HipInfluence` — `0` stops the hips dipping entirely.
-- `Feet.SmoothTime` / `Aim.Responsiveness` — raise to smooth jitter, lower for
-  snappier response.
+- `FootIK.HipInfluence` — `0` stops the hips dipping entirely.
+- `FootIK.SmoothTime` / `Aim.Responsiveness` — raise to smooth jitter, lower
+  for snappier response.
 
 ### Collision
 
@@ -198,42 +181,125 @@ these joints it writes them directly — no clean-base bookkeeping, no
 composing onto another system's value, no reading its own output back a frame
 later. That entire class of bug is absent by construction.
 
-The phase advances with **distance, not time**. A planted foot travels
-backwards through stance at exactly the speed the body travels forwards, so it
-cannot slide at any speed, and cadence rises with speed without being told to.
-Driving the phase off a clock means choosing a cadence, and then the feet
-skate whenever the real speed disagrees with it.
+Everything solves against a pelvis the module computes itself, and the chest,
+arms and feet chain off *that* rather than off the live parts. The live pelvis
+is last frame's answer, and feeding it back is what makes a procedural leg
+buzz.
 
-Everything solves against a pelvis the module computes itself, never the live
-part — the live pelvis is last frame's answer, and feeding it back is what
-makes a procedural leg buzz.
+**Feet are planted, not placed.** During stance a foot holds a fixed world
+position and the hip travels away from it. That is the whole difference
+between walking and waving your legs about while you slide: positioning the
+foot relative to the hip every frame means it tracks the body perfectly and
+never pushes against anything.
+
+Swing interpolates from the lift-off anchor to a predicted landing. The body
+covers `(1-duty)/duty` step lengths during one swing, a ratio that does not
+depend on speed, and the remaining travel is recomputed every frame — so
+turning mid-stride redirects the step instead of planting it where you used to
+be going. `MaxStride` drags an anchor back in if the hips walk away from it,
+before the solver clamps and the foot visibly tears off its plant.
+
+**Phase advances with distance, not time**, so cadence rises with speed on its
+own. Driving it off a clock means choosing a cadence, and then the feet skate
+whenever the real speed disagrees with it. It keeps advancing while the gait
+folds away, scaled by the blend: freezing it the instant you stop leaves the
+legs stuck mid-stride while the stride shrinks around them, which is exactly
+what "it freezes, then goes back to idle" looks like.
 
 Idle is not a separate path. At blend zero the stride and lift both fall to
 nothing and each foot sits under its own hip, which *is* the standing pose, so
 there is no state to pop between. Stance width and forward bias survive the
 blend, because those are posture and posture does not stop when you do.
 
+### Direction
+
+Steps go along the **velocity**, not the facing. A gait that only understands
+forward marches the legs the wrong way when you walk backwards and side-steps
+with a forward stride when you strafe; placing steps along travel gets
+backwards, strafing and every diagonal from one expression.
+
+Two things follow from it. Foot roll scales by travel · facing, so it is heel
+first forwards, toe first backwards and neither sideways, passing smoothly
+through zero on a diagonal. And lean tilts along travel, because leaning
+forward while walking backwards is the wrong way round.
+
+A **planted foot keeps the heading it landed on**. Taking foot orientation off
+the body's facing means swinging the camera spins every foot on the spot,
+including the one bearing weight. Only a foot in the air turns, and it turns
+to meet the heading it is about to land on. At low blend it eases back to
+facing anyway, so turning on the spot brings the feet round rather than
+leaving them splayed.
+
+What stays deliberately body-relative: stance width, the `FootAhead` posture,
+the sway axis, the arm-swing plane, and the knee pole — knees bend forward
+relative to the body whichever way it is travelling.
+
+### Foot roll
+
+The rig has an ankle plate, a foot block and a toe, and a walk that does not
+use them lands flat and leaves flat. Real stance is four events:
+
+| | |
+|---|---|
+| heel strike | toes up, heel only |
+| foot flat | sole down, ~12% into stance |
+| heel rise | ~58% in |
+| toe off | toes down 15–20° |
+
+Dorsiflexion through midstance is deliberately absent: the foot is held flat
+on the surface and the shin comes down to meet it, so that angle falls out of
+the IK on its own. Only what the geometry *cannot* produce is driven.
+
+Plantarflexion pivots on the toe, so the ankle target rises by the measured
+ankle-to-toe length times the sine of the angle. Without that the foot rotates
+while the ankle stays put and the toe drives through the floor.
+
+### Pelvis and arms
+
+Pelvic list drops the swing-side hip, keeping the centre of mass on a flatter
+path than the legs alone allow. The spine gives most of the pelvis yaw back —
+pelvis and thorax counter-rotate when you walk, and that opposition is what
+arm swing is actually driven by. Without it the torso yaws as one block and
+reads as swivelling.
+
+Arms swing against the leg on the same side, and **bend**. A shoulder rotating
+on its own is what reads as a mannequin. `ElbowBend` is posture and survives
+the blend, because a real arm never straightens even standing still;
+`ElbowSwing` is the extra flexion as the arm comes forward.
+
 ### Tuning it
 
 Press `]` in game for **WalkTuner**. It holds the same `Config` table the gait
 reads, so a slider changes the walk on the next frame with no plumbing in
-between. Any range that could plausibly want either sign has one, so no value
-depends on guessing which way this rig's axes point. Typing in a readout box
-is not clamped to the slider's range — the range is a guess at what is useful,
-not a limit on what is legal.
+between. Typing in a readout box is not clamped to the slider's range — the
+range is a guess at what is useful, not a limit on what is legal.
 
 Nothing is saved. **Copy to Output** prints a paste-ready block for
 `Config.Walk`; without that, the next session starts from the file again.
 
+**Every range that could want either sign has one**, and that is load-bearing
+rather than tidy: nothing here can know which way a given rig's joint axes
+point, so `FootPitchScale`, `ArmSwing`, `ElbowBend`, `PelvisList` and
+`LeanAngle` are all sign-discovered by dragging past zero. If something looks
+wrong rather than merely too strong, try negative before you try smaller — a
+foot rolling backwards at 5° and at 20° are the same mistake, just quieter.
+
 Roughly the order that converges fastest:
 
-1. `StepLength` and `DutyFactor` until the feet stop sliding and the overlap
+1. `DutyFactor` and `StepLength` until the feet stop sliding and the overlap
    looks right. Above 0.5 both feet share the ground, which is what makes a
-   walk a walk; below 0.5 reads as a run.
+   walk a walk; below 0.5 there is a moment with neither down, which reads as
+   a run. Reach for this before `StepLength` if steps feel like lunges.
 2. `StepHeight` and `FootAhead` for the shape of the step.
-3. `BobHeight` and `SwayWidth` for weight. These are small — a few
-   hundredths — and overdoing them is the fastest way to look like a puppet.
-4. `ArmSwing`, `BodyYaw`, `LeanAngle` last.
+3. The **Foot roll** group. Confirm `FootPitchScale`'s sign first — heel should
+   touch first and the toe should be last to leave — because every other value
+   in the group is applied through it.
+4. `BobHeight` and `SwayWidth` for weight. These are small, a few hundredths,
+   and overdoing them is the fastest way to look like a puppet.
+5. `FootTurnToMove` while strafing. At 0 the feet stay square to the body and
+   you get a proper side-step; at 1 they turn fully into the step. Neither is
+   wrong, it is a style call.
+6. Arms and pelvis last.
 
 ## Legs: foot IK over an authored animation
 
@@ -326,8 +392,9 @@ including `Character + 1` — is overwritten by the Animator before the frame is
 drawn. The writes happen; they just never survive.
 
 So procedural joint writes go on `RunService.Stepped` (PreSimulation), which
-runs after animations are applied. That is why `ProceduralLegs` is driven from
-`Stepped` while `IKSystem:Update` (which writes `C0`, not `Transform`, and sets
+runs after animations are applied. That is why `IKSystem:UpdateLate` — which
+is where both `ProceduralWalk` and `FootIK` live — is driven from `Stepped`,
+while `IKSystem:Update` (which writes `C0`, not `Transform`, and sets
 IKControl targets) stays on `BindToRenderStep` at
 `Enum.RenderPriority.Character.Value - 1`.
 
