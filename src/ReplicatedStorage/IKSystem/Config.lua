@@ -361,8 +361,25 @@ Config.Walk = {
 	SwayPhase = 0.0,
 	-- Forward lean, degrees, scaled by speed.
 	LeanAngle = -7.328,
-	-- Torso counter-rotation against the legs, degrees.
+	-- Pelvis rotation in the transverse plane, degrees. A real walk turns
+	-- the swing-side hip about 4 degrees forward.
 	BodyYaw = -11.034,
+	--[[
+		Pelvic list: the hip on the swinging side drops, about 5 degrees in a
+		real walk. One of the six determinants of gait -- it keeps the centre
+		of mass on a flatter path than the legs alone would allow, and without
+		it the pelvis reads as a plank the legs are bolted to.
+	]]
+	PelvisList = 4,
+	PelvisListPhase = 0.0,
+	--[[
+		How much of the pelvis rotation the spine gives back.
+
+		Pelvis and thorax counter-rotate when you walk; that opposition is
+		what drives the arm swing, and it is why the shoulders keep pointing
+		where you are going while the hips twist underneath.
+	]]
+	ChestCounter = 0.6,
 	-- Shoulder swing, degrees, opposite the leg on the same side.
 	ArmSwing = 27.931,
 
@@ -375,6 +392,29 @@ Config.Walk = {
 	-- Speed at which LeanAngle reaches full.
 	LeanSpeed = 27.897,
 
+	--[[
+		Foot roll through stance: heel strike, foot flat, heel rise, toe off.
+
+		The rig has an ankle plate, a foot block and a toe, and until now only
+		the plate moved. Real stance is four events, and a foot that lands flat
+		and leaves flat is the single biggest thing separating a walk that
+		reads as walking from one that reads as sliding.
+
+		Dorsiflexion through midstance is deliberately not here: the foot is
+		held flat on the surface and the shin comes down to meet it, so that
+		angle falls out of the IK by itself.
+
+		If the whole roll happens backwards on your rig, negate FootPitchScale.
+	]]
+	HeelStrikeAngle = 12,  -- degrees toes-up at contact
+	FlatAt = 0.12,         -- fraction of stance at which the sole is down
+	HeelRiseAt = 0.58,     -- fraction of stance at which the heel lifts
+	ToeOffAngle = 18,      -- degrees toes-down at push-off
+	ToeBend = 0.7,         -- fraction of that the toe joint gives back
+	FootPitchScale = 1,    -- master gain and sign for all four of the above
+	-- Ankle-to-toe length for the push-off lift. 0 measures it off the rig.
+	ToeAhead = 0,
+
 	-- Past this slope the foot stops trying to lie flat on it, radians.
 	MaxSlopeAngle = math.rad(50),
 	-- Ground probe around the step target.
@@ -386,6 +426,9 @@ Config.Walk = {
 	AnkleJoint = "%sAnkle",
 	-- Optional. Arm swing is skipped silently if this does not resolve.
 	ShoulderJoint = "%sShoulder",
+	-- Also optional: without these the foot cannot roll and stays flat.
+	HeelJoint = "%sHeelBase",
+	ToeJoint = "%sForefoot",
 }
 
 --[[
@@ -405,6 +448,15 @@ Config.WalkRanges = {
 	SwayPhase = { -1, 1 },
 	LeanAngle = { -25, 25 },
 	BodyYaw = { -20, 20 },
+	PelvisList = { -15, 15 },
+	PelvisListPhase = { -1, 1 },
+	ChestCounter = { 0, 1.5 },
+	HeelStrikeAngle = { 0, 30 },
+	FlatAt = { 0.02, 0.4 },
+	HeelRiseAt = { 0.3, 0.95 },
+	ToeOffAngle = { 0, 45 },
+	ToeBend = { 0, 1.5 },
+	FootPitchScale = { -1.5, 1.5 },
 	ArmSwing = { -45, 45 },
 	MinSpeed = { 0.1, 4 },
 	BlendTime = { 0.02, 0.6 },

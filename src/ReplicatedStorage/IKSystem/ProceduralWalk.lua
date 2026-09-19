@@ -86,6 +86,22 @@ function ProceduralWalk:_measure()
 			continue
 		end
 
+		--[[
+			Ankle-to-toe length, measured off the rig's own bind pose.
+
+			Plantarflexion at push-off pivots on the toe, so the ankle rises
+			by this times the sine of the angle. That is real reach, and
+			getting it from the rig means it stays right if the foot is
+			remodelled.
+		]]
+		local toe = rig:FindMotor(cfg.ToeJoint:format(side))
+		local bindToe = toe and toe.Part1 and rig:GetBindOffset(toe.Part1)
+		local toeAhead = cfg.ToeAhead
+		if toeAhead <= 0 and bindToe then
+			local span = bindToe.Position - bindAnkle.Position
+			toeAhead = Vector3.new(span.X, 0, span.Z).Magnitude
+		end
+
 		self.legs[side] = {
 			hip = hip,
 			knee = knee,
@@ -93,8 +109,11 @@ function ProceduralWalk:_measure()
 			bone = bone,
 			bindAnkleRot = bindAnkle.Rotation,
 			ankleInPart = ankle.C1.Position,
-			-- Optional. Arm swing is skipped silently if this is absent.
+			-- All optional. Each feature is skipped if its joint is absent.
 			shoulder = rig:FindMotor(cfg.ShoulderJoint:format(side)),
+			heel = rig:FindMotor(cfg.HeelJoint:format(side)),
+			toe = toe,
+			toeAhead = toeAhead,
 		}
 	end
 end
@@ -142,6 +161,62 @@ local function stride(p: number, duty: number, length: number, height: number): 
 	local t = (p - duty) / math.max(1 - duty, 1e-4)
 	local eased = t * t * (3 - 2 * t)
 	return -half + length * eased, math.sin(math.pi * t) * height
+end
+
+--[[
+	How the foot is pitched at this point in the cycle, and how far the toe
+	joint gives back, both in radians. Positive pitch is toes up.
+
+	This is the part a flat-footed procedural walk is missing, and it is the
+	single largest difference between one that reads as walking and one that
+	reads as sliding. Real stance is four events, not one:
+
+		heel strike   toes up, only the heel touching
+		foot flat     rolled down onto the sole, ~12% into stance
+		heel rise     heel lifts, ~60% in
+		toe off       toes down 15-20 degrees, pivoting over the toe
+
+	Swing then carries the foot back up to the heel-strike attitude, which
+	is also what clears it over the ground.
+
+	Dorsiflexion through midstance is deliberately absent: the foot is held
+	flat on the surface and the shin comes down to meet it, so the ankle
+	angle there falls out of the IK on its own. Only the parts the geometry
+	CANNOT produce are driven here.
+]]
+local function footRoll(p: number, duty: number, cfg): (number, number)
+	local strike = math.rad(cfg.HeelStrikeAngle)
+	local push = math.rad(cfg.ToeOffAngle)
+
+	if p >= duty then
+		-- Swing: ease from the toe-off attitude back to the next heel strike.
+		local t = (p - duty) / math.max(1 - duty, 1e-4)
+		local eased = t * t * (3 - 2 * t)
+		local pitch = -push + (strike + push) * eased
+		-- The toe unbends quickly once it leaves the ground.
+		return pitch, push * cfg.ToeBend * (1 - math.min(t * 3, 1))
+	end
+
+	local s = p / duty
+	local flat = math.clamp(cfg.FlatAt, 0.01, 0.9)
+	local rise = math.clamp(cfg.HeelRiseAt, flat + 0.01, 0.99)
+
+	if s < flat then
+		-- Rolling down onto the sole. Fast, because a real one is.
+		return strike * (1 - s / flat), 0
+	end
+	if s < rise then
+		return 0, 0
+	end
+
+	--[[
+		Heel rise into toe off, squared rather than linear: the heel barely
+		moves at first and then goes quickly, which is what a push looks
+		like. Linear here reads as the foot being peeled off the floor.
+	]]
+	local t = (s - rise) / math.max(1 - rise, 1e-4)
+	local eased = t * t
+	return -push * eased, push * cfg.ToeBend * eased
 end
 
 function ProceduralWalk:Update(dt: number)
@@ -201,16 +276,66 @@ function ProceduralWalk:Update(dt: number)
 	]]
 	local parentCF = rootMotor.Part0.CFrame * rootMotor.C0
 	local restPelvis = parentCF * rootMotor.C1:Inverse()
-	local pelvisCF = CFrame.new(Vector3.yAxis * bob + frame.RightVector * sway)
-		* restPelvis
-		* CFrame.Angles(lean, yaw, 0)
+
+	--[[
+		Pelvic list: the hip on the swinging side drops, about 5 degrees in a
+		real walk.
+
+		This is one of the classic six determinants of gait, and it is what
+		keeps the body's centre of mass travelling in a flatter line than the
+		legs alone would allow. Without it the hips stay rigidly level and
+		the whole pelvis reads as a plank the legs are bolted to.
+	]]
+	local list = math.sin((self.phase + cfg.PelvisListPhase) * turns)
+		* math.rad(cfg.PelvisList) * self.blend
+
+	local op = CFrame.new(Vector3.yAxis * bob + frame.RightVector * sway)
+	if math.abs(list) > 1e-5 then
+		op *= Util.rotateAboutWorld(restPelvis.Position, frame.LookVector, list)
+	end
+	local pelvisCF = op * restPelvis * CFrame.Angles(lean, yaw, 0)
 	rootMotor.Transform = parentCF:Inverse() * pelvisCF * rootMotor.C1
+
+	self:_spine(pelvisCF, yaw)
 
 	for _, side in ORDER do
 		local leg = self.legs[side]
 		if leg then
 			self:_leg(leg, SIDES[side], frame, pelvisCF, floorY, params)
 		end
+	end
+end
+
+--[[
+	Give back most of the pelvis rotation up the spine.
+
+	The pelvis and the thorax counter-rotate in a real walk -- that opposition
+	is what the arm swing is actually driven by, and it is why the shoulders
+	stay pointing where you are going while the hips twist under them. Without
+	it the whole torso yaws as one block and the character reads as swivelling
+	rather than walking.
+
+	Chained off the pelvis WE computed, not the live part: the live pelvis is
+	this module's own output from last frame.
+]]
+function ProceduralWalk:_spine(pelvisCF: CFrame, yaw: number)
+	local cfg = Config.Walk
+	local spine = self.rig.spine
+	if not spine then
+		return
+	end
+
+	local parent = pelvisCF
+	for _, joint in spine do
+		local motor = joint.motor
+		local base = parent * motor.C0
+		local share = -yaw * cfg.ChestCounter * (joint.weight or 0)
+		local turn = (math.abs(share) > 1e-5)
+			and Util.rotateAboutWorld(base.Position, Vector3.yAxis, share)
+			or CFrame.identity
+		local transform = base:Inverse() * turn * base
+		motor.Transform = transform
+		parent = base * transform * motor.C1:Inverse()
 	end
 end
 
@@ -240,8 +365,24 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, pelvisCF: CFrame, floorY:
 		+ frame.LookVector * along
 		+ frame.RightVector * (side.sign * cfg.StanceWidth * 0.5)
 
+	local pitch, toeBend = footRoll(p, math.clamp(cfg.DutyFactor, 0.05, 0.95), cfg)
+	local gain = cfg.FootPitchScale * self.blend
+	pitch, toeBend = pitch * gain, toeBend * gain
+
+	--[[
+		Plantarflexion pivots on the toe, which lifts the ankle by the foot's
+		length times the sine of the angle.
+
+		Without this the foot rotates but the ankle stays put, so the toe
+		drives into the floor and the push-off reads as the foot clipping
+		through rather than pressing off. It is also genuine extra reach --
+		the same thing your ankle does stepping down off a kerb.
+	]]
+	local pivotLift = math.max(0, math.sin(-pitch)) * leg.toeAhead
+
 	local surface, normal = self:_ground(plant, params)
-	local target = Vector3.new(plant.X, (surface or floorY) + cfg.AnkleHeight + lift, plant.Z)
+	local target = Vector3.new(plant.X,
+		(surface or floorY) + cfg.AnkleHeight + lift + pivotLift, plant.Z)
 
 	local upperCF, lowerCF, tipPos = TwoBone.solve(hipPos, target, leg.bone, frame.LookVector)
 	if not upperCF then
@@ -268,6 +409,36 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, pelvisCF: CFrame, floorY:
 	leg.ankle.Transform = (lowerCF * leg.ankle.C0):Inverse() * ankleCF * leg.ankle.C1
 
 	--[[
+		The ankle rocker rides on the heel joint, and the toe bend on the
+		forefoot joint, so the ankle plate above still follows the terrain
+		while the foot rolls heel to toe on top of it.
+
+		Both are applied as rotations about the body's right axis in WORLD
+		space and converted back through the Motor6D definition, so neither
+		depends on knowing which way this rig's joint axes point. If the
+		whole roll happens backwards, negate FootPitchScale -- that is what
+		it is for.
+	]]
+	local footCF = ankleCF
+	if leg.heel then
+		local base = ankleCF * leg.heel.C0
+		local turn = (math.abs(pitch) > 1e-5)
+			and Util.rotateAboutWorld(base.Position, frame.RightVector, pitch)
+			or CFrame.identity
+		local transform = base:Inverse() * turn * base
+		leg.heel.Transform = transform
+		footCF = base * transform * leg.heel.C1:Inverse()
+	end
+
+	if leg.toe then
+		local base = footCF * leg.toe.C0
+		local turn = (math.abs(toeBend) > 1e-5)
+			and Util.rotateAboutWorld(base.Position, frame.RightVector, toeBend)
+			or CFrame.identity
+		leg.toe.Transform = base:Inverse() * turn * base
+	end
+
+	--[[
 		Arms swing against the leg on the same side, which is what stops a
 		walk reading as a shuffle. Half a stride out of phase with this leg.
 	]]
@@ -288,14 +459,16 @@ function ProceduralWalk:Reset()
 	if rootMotor then
 		rootMotor.Transform = CFrame.identity
 	end
+	for _, joint in self.rig.spine or {} do
+		joint.motor.Transform = CFrame.identity
+	end
 	for _, side in ORDER do
 		local leg = self.legs[side]
 		if leg then
-			leg.hip.Transform = CFrame.identity
-			leg.knee.Transform = CFrame.identity
-			leg.ankle.Transform = CFrame.identity
-			if leg.shoulder then
-				leg.shoulder.Transform = CFrame.identity
+			for _, key in { "hip", "knee", "ankle", "shoulder", "heel", "toe" } do
+				if leg[key] then
+					leg[key].Transform = CFrame.identity
+				end
 			end
 		end
 	end
