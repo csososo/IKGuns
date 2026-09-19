@@ -368,7 +368,7 @@ Config.Walk = {
 		Width and lift are clearance: a little more room across, and a little
 		more height on the swing so the moving foot passes the planted one.
 	]]
-	StrafeStagger = 0.35,
+	StrafeStagger = 0.55,
 	--[[
 		How far the stagger alternates from stride to stride, 0 to 1.
 
