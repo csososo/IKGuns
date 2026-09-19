@@ -39,6 +39,7 @@ local camera = workspace.CurrentCamera
 local active = false
 local yaw, pitch, distance = 0, math.rad(-10), 16
 local dragging = false
+local hadMouseLock = nil
 
 local KEYS = {
 	[Enum.KeyCode.W] = Vector3.new(0, 0, -1),
@@ -96,6 +97,11 @@ local function update()
 		return
 	end
 
+	-- The camera module hands this back to Custom given the chance.
+	if camera.CameraType ~= Enum.CameraType.Scriptable then
+		camera.CameraType = Enum.CameraType.Scriptable
+	end
+
 	local focus = root.Position + Vector3.new(0, 1, 0)
 	local offset = CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0)
 	camera.CFrame = CFrame.lookAt(focus + offset * Vector3.new(0, 0, distance), focus)
@@ -125,11 +131,25 @@ local function setActive(on: boolean)
 	if active then
 		faceCharacter()
 		setControls(false)
+		--[[
+			Shift lock turns the character to face the camera every frame,
+			and it lives in the camera module, not the control module -- so
+			switching the controls off does not touch it. Left on, swinging
+			the camera round to the front simply drags the character round
+			with it, which is the opposite of watching it from the front.
+		]]
+		hadMouseLock = player.DevEnableMouseLock
+		player.DevEnableMouseLock = false
 		camera.CameraType = Enum.CameraType.Scriptable
 		RunService:BindToRenderStep("ViewTool", Enum.RenderPriority.Camera.Value, update)
 		print("[ViewTool] on -- WASD is world-relative, right-drag to orbit, C to face.")
 	else
 		RunService:UnbindFromRenderStep("ViewTool")
+		if hadMouseLock ~= nil then
+			player.DevEnableMouseLock = hadMouseLock
+			hadMouseLock = nil
+		end
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 		camera.CameraType = Enum.CameraType.Custom
 		camera.CameraSubject = humanoid()
 		setControls(true)
@@ -147,6 +167,14 @@ UserInputService.InputBegan:Connect(function(input, typing)
 	end
 	if input.UserInputType == Enum.UserInputType.MouseButton2 then
 		dragging = active
+		if dragging then
+			--[[
+				Delta is only populated while the mouse is LOCKED. With a
+				free cursor, MouseMovement reports zero and the orbit never
+				moves -- which looks exactly like the binding not working.
+			]]
+			UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+		end
 	elseif input.KeyCode == Enum.KeyCode.Space and active then
 		local human = humanoid()
 		if human then
@@ -160,6 +188,7 @@ end)
 UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton2 then
 		dragging = false
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	end
 end)
 
