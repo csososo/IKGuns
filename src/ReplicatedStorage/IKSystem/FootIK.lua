@@ -347,31 +347,78 @@ function FootIK:Update(dt: number)
 	end
 
 	if Config.Debug then
-		self._nextLog = self._nextLog or 0
-		if os.clock() >= self._nextLog then
-			self._nextLog = os.clock() + 0.5
-			local function fmt(side)
-				local leg = self.legs[side]
-				if not leg then return side .. "=none" end
-				return ("%s raw=%+.3f d=%+.3f w=%.2f plant=%.2f lift=%.2f"):format(
-					side:sub(1, 1), leg.raw or 0, leg.delta, leg.weight,
-					leg.plant or 0, leg.lift or 0)
-			end
-			--[[
-				Diagnostic only, and deliberately not fed back into anything:
-				how far the root-derived floor sits from the real one. A
-				standing offset here is a HipHeight that wants correcting,
-				and it would otherwise be invisible.
-			]]
-			local rootPart = rig.parts.Root
-			local probe = rootPart and self:_sampleGround(
-				Vector3.new(rootPart.Position.X, floorY, rootPart.Position.Z), params)
-			print(("[FootIK] floor=%.2f err=%+.3f drop=%+.3f roll=%+.1fdeg | %s | %s"):format(
-				floorY, probe and (probe - floorY) or 0,
-				self.hipDrop, math.deg(self.hipRoll or 0),
-				fmt("Left"), fmt("Right")))
+		self:_log(floorY, params)
+	end
+end
+
+--[[
+	Twice a second normally, every frame for a moment after anything jumps.
+
+	A twitch lasts two or three frames. Sampling at 2Hz cannot see one, so
+	every reading so far has been an inference from what the correction
+	happened to look like a quarter of a second either side of the event.
+	This catches the frames themselves.
+
+	What it watches is what actually reaches the rig -- delta * weight, and
+	the pelvis -- not the inputs. An input can jump all it likes as long as
+	nothing downstream moves.
+]]
+function FootIK:_log(floorY: number, params: RaycastParams)
+	local cfg = Config.FootIK
+	local jumped = false
+
+	local applied = {}
+	for _, side in SIDES do
+		local leg = self.legs[side]
+		local now = leg and (leg.delta * leg.weight) or 0
+		applied[side] = now
+		local was = self._applied and self._applied[side] or now
+		if math.abs(now - was) > cfg.SpikeLog then
+			jumped = true
 		end
 	end
+	self._applied = applied
+
+	local hip = self.hipDrop + (self.hipRoll or 0)
+	if self._hipWas and math.abs(hip - self._hipWas) > cfg.SpikeLog then
+		jumped = true
+	end
+	self._hipWas = hip
+
+	if jumped then
+		self._burst = 12
+	end
+	local bursting = (self._burst or 0) > 0
+	self._burst = bursting and self._burst - 1 or 0
+
+	local due = os.clock() >= (self._nextLog or 0)
+	if not (due or bursting) then
+		return
+	end
+	self._nextLog = os.clock() + 0.5
+
+	local function fmt(side)
+		local leg = self.legs[side]
+		if not leg then return side .. "=none" end
+		return ("%s raw=%+.3f d=%+.3f w=%.2f plant=%.2f lift=%.2f"):format(
+			side:sub(1, 1), leg.raw or 0, leg.delta, leg.weight,
+			leg.plant or 0, leg.lift or 0)
+	end
+
+	--[[
+		Diagnostic only, and deliberately not fed back into anything: how far
+		the root-derived floor sits from the real one. A standing offset here
+		is a HipHeight that wants correcting, and it would otherwise be
+		invisible.
+	]]
+	local rootPart = self.rig.parts.Root
+	local probe = rootPart and self:_sampleGround(
+		Vector3.new(rootPart.Position.X, floorY, rootPart.Position.Z), params)
+
+	print(("[FootIK]%s floor=%.2f err=%+.3f drop=%+.3f roll=%+.1fdeg | %s | %s"):format(
+		bursting and " !" or "", floorY, probe and (probe - floorY) or 0,
+		self.hipDrop, math.deg(self.hipRoll or 0),
+		fmt("Left"), fmt("Right")))
 end
 
 --[[

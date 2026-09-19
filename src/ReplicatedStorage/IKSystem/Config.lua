@@ -265,6 +265,16 @@ Config.FootIK = {
 	]]
 	MaxCorrectionRate = 6,
 
+	--[[
+		One-frame change in what reaches the rig that counts as a jump, in
+		studs. Crossing it switches the debug log to every frame for a dozen
+		frames, marked with a "!".
+
+		About a stud and a half per second at 60fps: well under anything you
+		would call a twitch, and well over the noise.
+	]]
+	SpikeLog = 0.02,
+
 	-- Cap on how fast the pelvis may move, studs and radians per second.
 	MaxHipRate = 3,
 	MaxRollRate = math.rad(60),
