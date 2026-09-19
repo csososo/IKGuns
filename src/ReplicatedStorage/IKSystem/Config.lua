@@ -436,6 +436,17 @@ Config.Walk = {
 	]]
 	MaxStride = 2.2,
 
+	--[[
+		How far the feet point along the direction of travel rather than along
+		the body's facing. 0 keeps them square to the body when strafing, 1
+		turns them fully into the step.
+	]]
+	FootTurnToMove = 0.35,
+	-- Seconds for a foot in the air to swing round to its landing heading.
+	FootTurnTime = 0.12,
+	-- Seconds for the movement direction itself to follow a change of input.
+	TurnTime = 0.12,
+
 	-- Past this slope the foot stops trying to lie flat on it, radians.
 	MaxSlopeAngle = math.rad(50),
 	-- Ground probe around the step target.
@@ -483,6 +494,9 @@ Config.WalkRanges = {
 	ElbowBend = { -60, 60 },
 	ElbowSwing = { -60, 60 },
 	MaxStride = { 1.2, 4 },
+	FootTurnToMove = { 0, 1 },
+	FootTurnTime = { 0.02, 0.5 },
+	TurnTime = { 0.02, 0.5 },
 	MinSpeed = { 0.1, 4 },
 	BlendTime = { 0.02, 0.6 },
 	SpeedSmooth = { 0.01, 0.5 },

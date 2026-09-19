@@ -120,6 +120,9 @@ function ProceduralWalk:_measure()
 			-- swing started. Both nil until the first frame places them.
 			anchor = nil,
 			from = nil,
+			-- The heading this foot landed on. Held for as long as it is
+			-- planted, so turning the body cannot spin a foot in place.
+			footRot = nil,
 		}
 	end
 end
@@ -233,12 +236,35 @@ function ProceduralWalk:Update(dt: number)
 	params.FilterDescendantsInstances = { rig.character }
 	params.IgnoreWater = true
 
+	self.dt = dt
+
 	local velocity = root.AssemblyLinearVelocity
-	local ground = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
-	self.speed = Util.damp(self.speed, ground, cfg.SpeedSmooth, dt)
+	local travel = Vector3.new(velocity.X, 0, velocity.Z)
+	self.speed = Util.damp(self.speed, travel.Magnitude, cfg.SpeedSmooth, dt)
 
 	local moving = self.speed > cfg.MinSpeed
 	self.blend = Util.damp(self.blend, moving and 1 or 0, cfg.BlendTime, dt)
+
+	--[[
+		The direction the body is TRAVELLING, which is not the direction it
+		is facing.
+
+		Steps used to go along the facing, so the feet marched forwards no
+		matter which way the character was actually going: backwards walked
+		the legs the wrong way entirely, and strafing stepped sideways with
+		a forward stride. Placing them along the velocity makes backwards,
+		strafing and every diagonal fall out of the same code, because a
+		step goes where you are going.
+
+		Held rather than zeroed when stopped, so the last step of a stop
+		finishes in the direction it was already heading.
+	]]
+	local wanted = travel.Magnitude > 1e-3 and travel.Unit
+		or self.moveDir or frame.LookVector
+	local eased = (self.moveDir or wanted):Lerp(wanted,
+		math.clamp(dt / math.max(cfg.TurnTime, 1e-3), 0, 1))
+	self.moveDir = eased.Magnitude > 1e-3 and eased.Unit or wanted
+	local moveDir = self.moveDir
 
 	--[[
 		Advance by distance covered, not by time.
@@ -300,7 +326,22 @@ function ProceduralWalk:Update(dt: number)
 	if math.abs(list) > 1e-5 then
 		op *= Util.rotateAboutWorld(restPelvis.Position, frame.LookVector, list)
 	end
-	local pelvisCF = op * restPelvis * CFrame.Angles(lean, yaw, 0)
+
+	--[[
+		Lean into the direction of travel, not into the facing.
+
+		Leaning forward while walking backwards is the wrong way round, and
+		while strafing it should be sideways. Rotating about the axis
+		perpendicular to the movement gets all three from one expression.
+	]]
+	if math.abs(lean) > 1e-5 then
+		local axis = -Vector3.yAxis:Cross(moveDir)
+		if axis.Magnitude > 1e-3 then
+			op *= Util.rotateAboutWorld(restPelvis.Position, axis.Unit, lean)
+		end
+	end
+
+	local pelvisCF = op * restPelvis * CFrame.Angles(0, yaw, 0)
 	rootMotor.Transform = parentCF:Inverse() * pelvisCF * rootMotor.C1
 
 	local chestCF = self:_spine(pelvisCF, yaw)
@@ -309,7 +350,7 @@ function ProceduralWalk:Update(dt: number)
 	for _, side in ORDER do
 		local leg = self.legs[side]
 		if leg then
-			self:_leg(leg, SIDES[side], frame, pelvisCF, floorY, params)
+			self:_leg(leg, SIDES[side], frame, moveDir, pelvisCF, floorY, params)
 			self:_arm(leg, (self.phase + SIDES[side].offset) % 1, chestCF, frame)
 		end
 	end
@@ -349,7 +390,7 @@ function ProceduralWalk:_spine(pelvisCF: CFrame, yaw: number)
 	return parent
 end
 
-function ProceduralWalk:_leg(leg, side, frame: CFrame, pelvisCF: CFrame, floorY: number, params: RaycastParams)
+function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, pelvisCF: CFrame, floorY: number, params: RaycastParams)
 	local cfg = Config.Walk
 
 	local hipCF = pelvisCF * leg.hip.C0
@@ -391,7 +432,7 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, pelvisCF: CFrame, floorY:
 			a stride ahead of the hip: a heel strike.
 		]]
 		local remaining = cfg.StepLength * (1 - duty) / duty * (1 - t)
-		local landing = neutral + frame.LookVector * (remaining + cfg.StepLength * 0.5)
+		local landing = neutral + moveDir * (remaining + cfg.StepLength * 0.5)
 
 		leg.from = leg.from or neutral
 		place = leg.from:Lerp(landing, t * t * (3 - 2 * t))
@@ -437,8 +478,38 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, pelvisCF: CFrame, floorY:
 
 	local plant = place
 
+	--[[
+		A planted foot keeps the heading it landed on.
+
+		The foot orientation used to come straight off the body's facing, so
+		swinging the camera spun every foot on the spot -- including the one
+		bearing weight, which is what the twisting was. A foot on the ground
+		does not rotate; only a foot in the air can turn, and it turns to
+		meet the heading it is about to land on.
+
+		At low blend it eases back to facing regardless, so standing still
+		and turning brings the feet round with you instead of leaving them
+		splayed where the last step left them.
+	]]
+	local aim = frame.LookVector:Lerp(moveDir, math.clamp(cfg.FootTurnToMove, 0, 1))
+	local wantRot = (aim.Magnitude > 1e-3)
+		and CFrame.lookAt(Vector3.zero, aim.Unit).Rotation
+		or frame.Rotation
+	local turn = (self.dt or 0) / math.max(cfg.FootTurnTime, 1e-3)
+	if not swinging then
+		turn *= 1 - self.blend
+	end
+	leg.footRot = leg.footRot
+		and leg.footRot:Lerp(wantRot, math.clamp(turn, 0, 1))
+		or wantRot
+
+	--[[
+		Heel first going forwards, toe first going backwards, and neither
+		sideways -- which is what people actually do. One dot product gets
+		all three, and it passes smoothly through zero on a diagonal.
+	]]
 	local pitch, toeBend = footRoll(p, duty, cfg)
-	local gain = cfg.FootPitchScale * self.blend
+	local gain = cfg.FootPitchScale * self.blend * moveDir:Dot(frame.LookVector)
 	pitch, toeBend = pitch * gain, toeBend * gain
 
 	--[[
@@ -475,8 +546,9 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, pelvisCF: CFrame, floorY:
 	local tilt = (slope <= cfg.MaxSlopeAngle)
 		and Util.rotationBetween(Vector3.yAxis, normal)
 		or CFrame.identity
+	local footAxis = leg.footRot.RightVector
 	local ankleCF = CFrame.new(tipPos)
-		* (tilt * frame.Rotation * leg.bindAnkleRot)
+		* (tilt * leg.footRot * leg.bindAnkleRot)
 		* CFrame.new(-leg.ankleInPart)
 	leg.ankle.Transform = (lowerCF * leg.ankle.C0):Inverse() * ankleCF * leg.ankle.C1
 
@@ -495,7 +567,7 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, pelvisCF: CFrame, floorY:
 	if leg.heel then
 		local base = ankleCF * leg.heel.C0
 		local turn = (math.abs(pitch) > 1e-5)
-			and Util.rotateAboutWorld(base.Position, frame.RightVector, pitch)
+			and Util.rotateAboutWorld(base.Position, footAxis, pitch)
 			or CFrame.identity
 		local transform = base:Inverse() * turn * base
 		leg.heel.Transform = transform
@@ -505,7 +577,7 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, pelvisCF: CFrame, floorY:
 	if leg.toe then
 		local base = footCF * leg.toe.C0
 		local turn = (math.abs(toeBend) > 1e-5)
-			and Util.rotateAboutWorld(base.Position, frame.RightVector, toeBend)
+			and Util.rotateAboutWorld(base.Position, footAxis, toeBend)
 			or CFrame.identity
 		leg.toe.Transform = base:Inverse() * turn * base
 	end
