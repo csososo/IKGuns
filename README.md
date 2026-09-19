@@ -261,8 +261,11 @@ leaving them splayed.
 across the body, where they read as a single mass with nothing to clear each
 other by. So the feet stagger fore and aft — `StrafeStagger` puts the foot on
 the side you are heading towards in front and the other behind, giving a clear
-front leg and a clear back leg, which is what people do anyway. `StrafeWidth`
-and `StrafeLift` add the clearance: a little more room across, a little more
+front leg and a clear back leg, which is what people do anyway. `StrafeCross` then swaps which
+foot leads on every plant, so the legs pass each other — forward, then back,
+then forward — which is the grapevine a real side-step falls into, and what
+makes it read as stepping rather than as a pose being carried sideways.
+`StrafeWidth` and `StrafeLift` add the clearance: a little more room across, a little more
 height on the swing so the moving foot passes the planted one. All three scale
 with how sideways the travel is, so forward walking is untouched and there is
 no separate case for it.

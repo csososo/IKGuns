@@ -347,8 +347,8 @@ Config.Walk = {
 		put it all in stride and leave cadence fixed.
 	]]
 	StrideSpeedRef = 16,
-	StrideExponent = 0.5,
-	MinStrideScale = 0.3,
+	StrideExponent = 0.078,
+	MinStrideScale = 0.337,
 	-- Peak lift of a swinging foot.
 	StepHeight = 0.621,
 	-- Extra spread between the feet, on top of the rig's own hip spacing.
@@ -369,6 +369,19 @@ Config.Walk = {
 		more height on the swing so the moving foot passes the planted one.
 	]]
 	StrafeStagger = 0.35,
+	--[[
+		Alternating stagger: how far the feet swap front and back between
+		side-steps, in studs.
+
+		StrafeStagger alone holds one foot permanently in front, which reads
+		as a pose being carried sideways. Flipping which foot leads on every
+		plant makes the legs pass each other -- forward, then back, then
+		forward -- which is the grapevine a real side-step falls into, and
+		the thing that makes it read as stepping rather than shuffling.
+
+		Set to 0 for the fixed lead foot on its own.
+	]]
+	StrafeCross = 0.25,
 	StrafeWidth = 0.3,
 	StrafeLift = 0.2,
 	--[[
@@ -532,7 +545,7 @@ Config.Walk = {
 		scaled down towards this as travel turns sideways, rather than a foot
 		being clamped still.
 	]]
-	SideStepRatio = 1.6,
+	SideStepRatio = 2.071,
 
 	--[[
 		How far a foot may drift from under its hip while standing before it
@@ -598,6 +611,7 @@ Config.WalkRanges = {
 	StepHeight = { 0, 2 },
 	StanceWidth = { -1, 1 },
 	StrafeStagger = { -1.5, 1.5 },
+	StrafeCross = { 0, 1.5 },
 	StrafeWidth = { 0, 1.5 },
 	StrafeLift = { 0, 1 },
 	DutyFactor = { 0.4, 0.9 },

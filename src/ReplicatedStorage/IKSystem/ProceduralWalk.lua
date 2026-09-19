@@ -126,6 +126,9 @@ function ProceduralWalk:_measure()
 			from = nil,
 			-- Phase offset from an early step, unwound over later strides.
 			shift = 0,
+			-- Which way this foot staggers while strafing; flips on each
+			-- plant so the two legs pass front to back.
+			cross = side == "Left",
 			-- True while this foot is turning under itself to catch up.
 			pivoting = false,
 			-- Last frame's world position, for the foot speed ceiling.
@@ -571,8 +574,25 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 	local sideways = math.abs(lateral)
 	local lead = side.sign * lateral
 
+	--[[
+		Swap which foot leads on every plant.
+
+		A fixed stagger holds one foot permanently in front, which reads as
+		a pose being carried sideways rather than as walking. Flipping on
+		each landing makes the legs pass each other -- forward, then back,
+		then forward -- which is the grapevine a real side-step falls into.
+
+		Read from last frame's airborne flag, before this frame overwrites
+		it below, so the flip lands exactly on touchdown.
+	]]
+	if leg.airborne and not swinging then
+		leg.cross = not leg.cross
+	end
+	local stagger = cfg.StrafeStagger * lead
+		+ cfg.StrafeCross * sideways * (leg.cross and 1 or -1)
+
 	local neutral = Vector3.new(hipPos.X, floorY, hipPos.Z)
-		+ frame.LookVector * (cfg.FootAhead + cfg.StrafeStagger * lead)
+		+ frame.LookVector * (cfg.FootAhead + stagger)
 		+ frame.RightVector
 			* (side.sign * (cfg.StanceWidth + cfg.StrafeWidth * sideways) * 0.5)
 
