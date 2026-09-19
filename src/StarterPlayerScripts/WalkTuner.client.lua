@@ -1,6 +1,8 @@
 --[[
 	WalkTuner -- live sliders for the procedural gait. Press ']' to show it.
 
+	Edits whichever profile TUNING points at; see the note beside it.
+
 	Config is a ModuleScript, so both this and ProceduralWalk hold the SAME
 	table on the client: writing a value here changes the gait on the next
 	frame, with no plumbing in between and nothing to keep in sync.
@@ -29,6 +31,20 @@ local TEXT = Color3.fromRGB(226, 226, 232)
 local DIM = Color3.fromRGB(150, 150, 160)
 
 --[[
+	Which profile the panel edits.
+
+	Walk and run hold the same set of keys, so one panel can drive either
+	and swapping is a single line. Pointed at the run for now, because that
+	is what is being tuned; put Config.Walk back to work on the walk again.
+
+	Ranges fall back to the walk's, since a value means the same thing in
+	both and only the handful that exist solely for running need their own.
+]]
+local TUNING = Config.Run
+local RANGES = Config.RunRanges
+local TITLE = (TUNING == Config.Run) and "SPRINT TUNER" or "WALK TUNER"
+
+--[[
 	Order matters: these are grouped the way you tune them, not the way the
 	table happens to be written. Shape of the step first, then how the body
 	rides on top of it, then the response.
@@ -43,19 +59,8 @@ local GROUPS = {
 	{ "Pelvis", { "BodyYaw", "PelvisList", "PelvisListPhase", "ChestCounter" } },
 	{ "Arms", { "ArmSwing", "ElbowBend", "ElbowSwing" } },
 	{ "Response", { "MinSpeed", "BlendTime", "SpeedSmooth", "LeanSpeed" } },
-	--[[
-		Running is a set of overrides on everything above, blended in by
-		speed, so these rows edit Config.Run rather than Config.Walk. A value
-		here only matters if it should differ from its walk counterpart.
-	]]
-	{ "Run", {
-		"SprintSpeed", "BlendFrom", "BlendTo",
-		"StepLength", "StepHeight", "DutyFactor", "FootAhead",
-		"HeelStrikeAngle", "ToeOffAngle",
-		"BobHeight", "SwayWidth", "LeanAngle", "BodyYaw", "PelvisList", "ChestCounter",
-		"ArmSwing", "ElbowBend", "ElbowSwing",
-		"StrafeStagger", "StrafeWidth", "StrafeLift",
-	}, Config.Run, Config.RunRanges },
+	-- Sprint only: the speed itself, and where the profile fades in.
+	{ "Sprint", { "SprintSpeed", "BlendFrom", "BlendTo" } },
 }
 
 local player = Players.LocalPlayer
@@ -93,7 +98,7 @@ header.Font = Enum.Font.Code
 header.TextSize = 13
 header.TextColor3 = TEXT
 header.TextXAlignment = Enum.TextXAlignment.Left
-header.Text = "WALK TUNER    ]  hide"
+header.Text = TITLE .. "   ]  hide"
 header.Parent = root
 
 local body = Instance.new("ScrollingFrame")
@@ -256,12 +261,10 @@ end
 
 for _, group in GROUPS do
 	label(group[1]:upper(), 11, DIM)
-	local store = group[3] or Config.Walk
-	local ranges = group[4] or Config.WalkRanges
 	for _, key in group[2] do
-		local range = ranges[key]
-		if range and type(store[key]) == "number" then
-			slider(store, key, range[1], range[2])
+		local range = RANGES[key] or Config.WalkRanges[key]
+		if range and type(TUNING[key]) == "number" then
+			slider(TUNING, key, range[1], range[2])
 		end
 	end
 end
@@ -286,12 +289,11 @@ copyCorner.Parent = copy
 	over Config.Walk. Nothing here survives the session otherwise.
 ]]
 copy.Activated:Connect(function()
-	local out = { "-- paste over the matching lines in Config.Walk / Config.Run" }
+	local out = { "-- paste over the matching lines in " .. TITLE }
 	for _, group in GROUPS do
 		table.insert(out, ("\t-- %s"):format(group[1]))
-		local store = group[3] or Config.Walk
 		for _, key in group[2] do
-			local value = store[key]
+			local value = TUNING[key]
 			if type(value) == "number" then
 				table.insert(out, ("\t%s = %.3f,"):format(key, value))
 			end

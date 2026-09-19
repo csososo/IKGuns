@@ -335,7 +335,7 @@ Config.Gait = "procedural"
 ]]
 Config.Walk = {
 	-- Ground covered by one full stride, in studs, at StrideSpeedRef.
-	StepLength = 2.776,
+	StepLength = 1.6,
 	--[[
 		How stride and cadence split a change of pace.
 
@@ -346,7 +346,7 @@ Config.Walk = {
 		some into cadence; an exponent of 0.5 divides it evenly, and 1 would
 		put it all in stride and leave cadence fixed.
 	]]
-	StrideSpeedRef = 16,
+	StrideSpeedRef = 7,
 	StrideExponent = 0.310,
 	MinStrideScale = 0.337,
 	-- Peak lift of a swinging foot.
@@ -599,48 +599,38 @@ Config.Walk = {
 }
 
 --[[
-	Running, as a set of overrides on the walk rather than a second gait.
+	Running.
 
-	Everything in ProceduralWalk already scales with speed -- stride,
-	cadence, how far the body leans -- so what actually separates a run from
-	a walk is the tuning, not the machinery. These values are blended in
-	across BlendFrom..BlendTo, so there is no switch to catch and diagonals
-	and part-speeds land somewhere sensible on their own.
+	Built as a copy of the walk with the differences applied over it, so
+	every key exists in both and the sprint tuner has a full set to work
+	with. Everything in ProceduralWalk already scales with speed -- stride,
+	cadence, how far the body leans -- so what separates a run from a walk
+	is the tuning, not the machinery.
 
-	Anything left out of this table keeps its walk value.
+	Blended in across BlendFrom..BlendTo rather than switched, so there is
+	no threshold to catch and part-speeds land somewhere sensible.
 
 	Signs follow the walk's, because they encode which way this rig's axes
-	point rather than anything about gait: if a walk value is negative here,
-	its run counterpart is too.
+	point rather than anything about gait.
 ]]
-Config.Run = {
-	-- Speeds the sprint key switches between.
-	WalkSpeed = 16,
-	SprintSpeed = 28,
+local RUN = {
 	--[[
-		Deliberately not Shift: that is shift lock's key, and the strafe
-		work depends on shift lock being usable.
-	]]
-	SprintKey = Enum.KeyCode.LeftControl,
-
-	-- Where the run profile starts and finishes taking over, in studs/s.
-	BlendFrom = 18,
-	BlendTo = 26,
-
-	--[[
-		A DutyFactor below 0.5 means a moment with neither foot down. In a
-		walk that is a defect; in a run it is the flight phase, and it is
-		what actually makes it a run.
+		Below 0.5 there is a moment with neither foot down. In a walk that
+		is a defect; in a run it is the flight phase, and it is what makes
+		it a run at all.
 	]]
 	DutyFactor = 0.35,
-	StepLength = 4.2,
+	StepLength = 3.2,
 	StepHeight = 1.0,
 	FootAhead = 0.1,
+	-- The speed the stride above was judged at.
+	StrideSpeedRef = 18,
 
-	-- Forefoot strike: a run lands toes-first, not heel-first, so this
-	-- crosses zero rather than merely shrinking.
+	-- Forefoot strike: a run lands toes-first, so this crosses zero rather
+	-- than merely shrinking.
 	HeelStrikeAngle = -6,
 	ToeOffAngle = 26,
+	HeelRiseAt = 0.45,
 
 	BobHeight = 0.12,
 	SwayWidth = 0.02,
@@ -649,7 +639,7 @@ Config.Run = {
 	PelvisList = 1.2,
 	ChestCounter = 0.8,
 
-	-- Arms drive a sprint: bent hard and swinging much further.
+	-- Arms drive a sprint: bent hard, swinging much further.
 	ArmSwing = -34,
 	ElbowBend = 45,
 	ElbowSwing = 25,
@@ -659,28 +649,26 @@ Config.Run = {
 	StrafeLift = 0.3,
 }
 
+Config.Run = {}
+for key, value in Config.Walk do
+	Config.Run[key] = value
+end
+for key, value in RUN do
+	Config.Run[key] = value
+end
+
+-- Not gait values, and so deliberately outside the table that blends.
+Config.Run.WalkSpeed = 7
+Config.Run.SprintSpeed = 18
+Config.Run.SprintKey = Enum.KeyCode.LeftShift
+-- Where the run profile starts and finishes taking over, in studs/s.
+Config.Run.BlendFrom = 9
+Config.Run.BlendTo = 16
+
 Config.RunRanges = {
-	SprintSpeed = { 16, 60 },
-	BlendFrom = { 4, 40 },
-	BlendTo = { 6, 60 },
-	DutyFactor = { 0.2, 0.7 },
-	StepLength = { 1, 9 },
-	StepHeight = { 0, 2.5 },
-	FootAhead = { -1.5, 1.5 },
-	HeelStrikeAngle = { -30, 30 },
-	ToeOffAngle = { 0, 45 },
-	BobHeight = { -0.5, 0.5 },
-	SwayWidth = { -0.5, 0.5 },
-	LeanAngle = { -35, 35 },
-	BodyYaw = { -30, 30 },
-	PelvisList = { -15, 15 },
-	ChestCounter = { 0, 1.5 },
-	ArmSwing = { -70, 70 },
-	ElbowBend = { -90, 90 },
-	ElbowSwing = { -70, 70 },
-	StrafeStagger = { -1.5, 1.5 },
-	StrafeWidth = { 0, 1.5 },
-	StrafeLift = { 0, 1 },
+	SprintSpeed = { 8, 60 },
+	BlendFrom = { 2, 40 },
+	BlendTo = { 4, 60 },
 }
 
 

@@ -94,7 +94,7 @@ Weights are in `Config.Aim.SpineJoints`.
    - `src/StarterPlayerScripts/` → LocalScripts in
      `StarterPlayer > StarterPlayerScripts`: `IKController` drives the system,
      `CharacterAnimator` plays the clips, `WalkTuner` is the gait panel,
-     `Sprint` holds the run key.
+     `MovementController` owns speed, sprint and facing.
    - `src/ServerScriptService/CharacterSetup.server.lua` → a Script in
      `ServerScriptService`.
 2. Press play. Walk onto a slope — feet should tilt and meet it.
@@ -456,15 +456,24 @@ the flight phase in a run, and what makes it a run at all. And
 `HeelStrikeAngle` crosses zero rather than merely shrinking, because a run
 lands on the forefoot instead of the heel.
 
-`Sprint.client.lua` only changes `WalkSpeed`. The gait has no notion of a
-sprint button, so anything else that changes your speed gets the right gait
-for free and there is no state that can disagree with the legs. The key is
-deliberately not Shift, which belongs to shift lock, and the strafe behaviour
-depends on shift lock being usable.
+`MovementController.client.lua` does two things. It picks between the walk
+and sprint speeds on Shift — and nothing more, because the gait has no notion
+of a sprint button, so anything else that changes your speed gets the right
+gait for free and no state can disagree with the legs.
+
+It also holds the character **facing the camera permanently**, which is shift
+lock's behaviour without shift lock. That is load-bearing: the gait's whole
+notion of strafing is velocity measured *across the body's own facing*, and
+with Roblox's default rotation the character turns to face wherever it is
+going — so that measurement is always zero, pressing A is a left turn rather
+than a side-step, and every strafe feature correctly does nothing. It also
+frees Shift, which would otherwise toggle shift lock and fight it.
 
 ### Tuning it
 
-Press `]` in game for **WalkTuner**. It holds the same `Config` table the gait
+Press `]` in game for **WalkTuner**. One line at the top of it, `TUNING`,
+picks whether it edits the walk or the run — walk and run hold the same keys,
+so one panel drives either. It is pointed at the run for now. It holds the same `Config` table the gait
 reads, so a slider changes the walk on the next frame with no plumbing in
 between. Typing in a readout box is not clamped to the slider's range — the
 range is a guess at what is useful, not a limit on what is legal.
