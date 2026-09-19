@@ -1,5 +1,7 @@
 --[[
-	WalkTuner -- live sliders for the procedural gait. Press ']' to show it.
+	WalkTuner -- live sliders for the procedural gait.
+
+	Say "TunerTuner" in chat to unlock it; ']' shows and hides it after.
 
 	Edits whichever profile TUNING points at; see the note beside it.
 

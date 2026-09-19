@@ -120,7 +120,7 @@ attribute `IsWeapon = true`.
 
 ## Tuning
 
-The procedural gait is tuned live — press `]` in game, see **Tuning it**
+The procedural gait is tuned live — say `TunerTuner` in chat, see **Tuning it**
 below. Everything else is in `Config.lua`:
 
 - `Aim.MaxYaw` — how far the torso twists before the legs have to turn.
