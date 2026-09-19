@@ -13,6 +13,7 @@
 ]]
 
 local ContextActionService = game:GetService("ContextActionService")
+local TextChatService = game:GetService("TextChatService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -118,7 +119,8 @@ gui.Name = "WalkTuner"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.DisplayOrder = 50
-gui.Enabled = Config.Gait == "procedural"
+-- Hidden until the phrase is said; see the bottom of the file.
+gui.Enabled = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
 local root = Instance.new("Frame")
@@ -412,8 +414,41 @@ if remote then
 	end)
 end
 
+--[[
+	The panel is hidden until you say the phrase.
+
+	Said, not bound to a key, so it cannot be found by anyone idly pressing
+	things. Once it has been said the bracket works as a show/hide, because
+	retyping it every time you want the view back would be tiresome -- the
+	phrase is the gate, not the toggle.
+
+	Both chat systems are handled, but only ever one of them: connecting to
+	both would see each message twice and toggle straight back.
+]]
+local PHRASE = "tunertuner"
+local unlocked = false
+
+local function said(text: string)
+	if text:gsub("%s", ""):lower() ~= PHRASE then
+		return
+	end
+	unlocked = true
+	gui.Enabled = not gui.Enabled
+end
+
+if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+	TextChatService.MessageReceived:Connect(function(message)
+		local source = message.TextSource
+		if source and source.UserId == player.UserId then
+			said(message.Text)
+		end
+	end)
+else
+	player.Chatted:Connect(said)
+end
+
 ContextActionService:BindAction("ToggleWalkTuner", function(_, state)
-	if state == Enum.UserInputState.Begin then
+	if state == Enum.UserInputState.Begin and unlocked then
 		gui.Enabled = not gui.Enabled
 	end
 	return Enum.ContextActionResult.Sink

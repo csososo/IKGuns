@@ -99,7 +99,7 @@ Weights are in `Config.Aim.SpineJoints`.
      `CharacterSetup` forces the rig properties, `GaitSync` relays tuner
      edits between clients.
 2. Press play. Walk onto a slope — feet should tilt and meet it.
-3. Press `]` for the gait tuner.
+3. Say `TunerTuner` in chat for the gait tuner.
 
 New top-level mappings in `default.project.json` are read at startup, so
 restart `rojo serve` after adding one. Files inside a folder that is already
@@ -493,7 +493,9 @@ feature correctly does nothing.
 
 ### Tuning it
 
-Press `]` in game for the **gait tuner**. The button in its header cycles
+Say **`TunerTuner`** in chat to unlock the **gait tuner**. After that `]`
+shows and hides it, because retyping the phrase every time you want the view
+back would be tiresome — the phrase is the gate, not the toggle. The button in its header cycles
 which profile the rows edit — all three hold the same keys, so one panel
 drives any of them. Which gait you are *in* is chosen by speed; the switch
 only picks which one you are editing. It holds the same `Config` table the gait
