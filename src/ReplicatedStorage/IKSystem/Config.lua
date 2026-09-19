@@ -347,7 +347,7 @@ Config.Walk = {
 		put it all in stride and leave cadence fixed.
 	]]
 	StrideSpeedRef = 16,
-	StrideExponent = 0.078,
+	StrideExponent = 0.310,
 	MinStrideScale = 0.337,
 	-- Peak lift of a swinging foot.
 	StepHeight = 0.621,

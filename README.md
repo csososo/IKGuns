@@ -266,9 +266,17 @@ foot leads on every plant, so the legs pass each other — forward, then back,
 then forward — which is the grapevine a real side-step falls into, and what
 makes it read as stepping rather than as a pose being carried sideways.
 `StrafeWidth` and `StrafeLift` add the clearance: a little more room across, a little more
-height on the swing so the moving foot passes the planted one. All three scale
-with how sideways the travel is, so forward walking is untouched and there is
-no separate case for it.
+height on the swing so the moving foot passes the planted one. All of it scales
+with how sideways the travel is *and* with the gait blend, so forward walking
+is untouched and there is no separate case for it. The blend term matters:
+strafe posture belongs to the gait, not to standing, and without it the
+stagger and spread survive into idle at full strength so the hips never settle
+after a side-step.
+
+For the same reason the travel direction returns to the body's facing once you
+stop. Holding the last direction leaves it pointing sideways for as long as
+you stand there, and the next walk then starts with it still sideways and has
+to sweep round while the feet step the wrong way.
 
 **Side-steps are shorter, and have to be.** The feet are held apart *across*
 the body, so sideways travel runs the stride along the very axis keeping them

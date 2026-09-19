@@ -290,8 +290,22 @@ function ProceduralWalk:Update(dt: number)
 		Held rather than zeroed when stopped, so the last step of a stop
 		finishes in the direction it was already heading.
 	]]
-	local wanted = self.velocity.Magnitude > 1e-3 and self.velocity.Unit
-		or self.moveDir or frame.LookVector
+	--[[
+		Standing still, the travel direction goes back to the facing.
+
+		Holding the last direction instead leaves it pointing sideways
+		after a strafe, for as long as you stand there. Everything keyed
+		off it then stays keyed off a strafe you finished -- and worse, the
+		next walk starts with the direction still sideways and has to sweep
+		round while the feet step the wrong way.
+
+		The threshold is half MinSpeed rather than zero: the smoothed
+		velocity decays exponentially, so waiting for it to actually reach
+		zero would hold the stale direction for most of a second.
+	]]
+	local wanted = (self.velocity.Magnitude > cfg.MinSpeed * 0.5)
+		and self.velocity.Unit
+		or frame.LookVector
 
 	--[[
 		Turned as an ANGLE, not lerped between two direction vectors.
@@ -570,7 +584,16 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		for the other, scaled by how sideways the travel is, so every strafe
 		term vanishes on its own when walking forward. No separate case.
 	]]
-	local lateral = moveDir:Dot(frame.RightVector)
+	--[[
+		Scaled by the blend, because the strafe posture belongs to the
+		GAIT, not to standing.
+
+		Without this the stagger, the extra width and the extra lift all
+		survive into idle at full strength, so the hips never settle back
+		after a side-step and whatever comes next starts from a crooked
+		stance.
+	]]
+	local lateral = moveDir:Dot(frame.RightVector) * self.blend
 	local sideways = math.abs(lateral)
 	local lead = side.sign * lateral
 
