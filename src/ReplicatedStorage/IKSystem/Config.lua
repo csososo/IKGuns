@@ -370,8 +370,8 @@ Config.Walk = {
 		of mass on a flatter path than the legs alone would allow, and without
 		it the pelvis reads as a plank the legs are bolted to.
 	]]
-	PelvisList = 4,
-	PelvisListPhase = 0.0,
+	PelvisList = -4.138,
+	PelvisListPhase = -0.690,
 	--[[
 		How much of the pelvis rotation the spine gives back.
 
@@ -390,8 +390,8 @@ Config.Walk = {
 		the arm comes forward, which is the part that stops a swinging arm
 		reading as a broomstick on a hinge.
 	]]
-	ElbowBend = 10,
-	ElbowSwing = 22,
+	ElbowBend = 5.172,
+	ElbowSwing = 7.241,
 
 	-- Below this ground speed the gait folds back to a neutral stance.
 	MinSpeed = 0.6,
