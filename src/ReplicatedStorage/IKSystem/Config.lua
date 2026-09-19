@@ -435,6 +435,14 @@ Config.Walk = {
 		anchor.
 	]]
 	MaxStride = 2.2,
+	--[[
+		The same limit as a fraction of the leg's own length, whichever is
+		smaller. MaxStride alone came to six studs on this rig -- longer than
+		the leg -- so an over-stretched anchor was never caught and the
+		solver quietly clamped instead, which looks like a leg that has
+		stopped moving.
+	]]
+	MaxReach = 0.9,
 
 	--[[
 		How far the feet point along the direction of travel rather than along
@@ -526,6 +534,7 @@ Config.WalkRanges = {
 	ElbowBend = { -60, 60 },
 	ElbowSwing = { -60, 60 },
 	MaxStride = { 1.2, 4 },
+	MaxReach = { 0.5, 1 },
 	FootTurnToMove = { 0, 1 },
 	MaxFootYaw = { 0, 60 },
 	MaxFootLag = { 5, 90 },

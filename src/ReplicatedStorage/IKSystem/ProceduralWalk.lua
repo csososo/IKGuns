@@ -264,9 +264,28 @@ function ProceduralWalk:Update(dt: number)
 	]]
 	local wanted = travel.Magnitude > 1e-3 and travel.Unit
 		or self.moveDir or frame.LookVector
-	local eased = (self.moveDir or wanted):Lerp(wanted,
-		math.clamp(dt / math.max(cfg.TurnTime, 1e-3), 0, 1))
-	self.moveDir = eased.Magnitude > 1e-3 and eased.Unit or wanted
+
+	--[[
+		Turned as an ANGLE, not lerped between two direction vectors.
+
+		Reversing makes the target the exact opposite of the current
+		direction, and a lerp between opposite unit vectors passes through
+		zero length -- so at the halfway point the direction is undefined
+		and thrashes, which is the legs getting stuck when you change
+		direction. Rotating by a bounded angle instead sweeps through the
+		reversal smoothly and can never degenerate.
+
+		Same mistake as the foot aim lerp, in a different place. Any time
+		two unit vectors are interpolated and one can oppose the other, the
+		answer is an angle.
+	]]
+	local from = self.moveDir or wanted
+	local here = math.atan2(-from.X, -from.Z)
+	local there = math.atan2(-wanted.X, -wanted.Z)
+	local diff = (there - here + math.pi) % (math.pi * 2) - math.pi
+	local most = (dt / math.max(cfg.TurnTime, 1e-3)) * math.pi
+	local yawed = here + math.clamp(diff, -most, most)
+	self.moveDir = Vector3.new(-math.sin(yawed), 0, -math.cos(yawed))
 	local moveDir = self.moveDir
 
 	--[[
@@ -530,12 +549,29 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		the anchor in instead, proportionally to how far past the limit it
 		has got.
 	]]
-	local reach = (Vector3.new(place.X - hipPos.X, 0, place.Z - hipPos.Z)).Magnitude
-	local limit = stepLength * cfg.MaxStride
-	if reach > limit then
-		local slide = math.clamp((reach - limit) / limit, 0, 1)
-		place = place:Lerp(neutral, slide)
-		leg.anchor = leg.anchor:Lerp(neutral, slide)
+	--[[
+		An anchor the hips have walked away from is pulled back to arm's
+		length, hard.
+
+		The limit is capped by what the leg can actually REACH, not just by
+		a multiple of the stride: 2.2 strides came to six studs, further
+		than the leg is long, so nothing was ever caught. Reversing left a
+		foot pinned well behind the body with the solver clamping to hide
+		it, which is a leg that has stopped moving.
+
+		Projected onto the reach circle rather than eased toward neutral,
+		so the result is bounded on the frame it happens. A planted foot
+		sliding is not ideal; a planted foot the leg cannot reach is worse,
+		and being dragged is what actually happens to you.
+	]]
+	local out = Vector3.new(place.X - hipPos.X, 0, place.Z - hipPos.Z)
+	local limit = math.min(stepLength * cfg.MaxStride,
+		(leg.bone.l1 + leg.bone.l2) * cfg.MaxReach)
+	if out.Magnitude > limit and out.Magnitude > 1e-4 then
+		place = Vector3.new(hipPos.X, place.Y, hipPos.Z) + out.Unit * limit
+		if not swinging then
+			leg.anchor = place
+		end
 	end
 
 	--[[

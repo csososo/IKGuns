@@ -34,7 +34,7 @@ local DIM = Color3.fromRGB(150, 150, 160)
 	rides on top of it, then the response.
 ]]
 local GROUPS = {
-	{ "Step", { "StepLength", "StepHeight", "DutyFactor", "StanceWidth", "FootAhead", "AnkleHeight", "MaxStride" } },
+	{ "Step", { "StepLength", "StepHeight", "DutyFactor", "StanceWidth", "FootAhead", "AnkleHeight", "MaxStride", "MaxReach" } },
 	{ "Direction", { "FootTurnToMove", "MaxFootYaw", "MaxFootLag", "SideStepRatio", "FootTurnTime", "TurnTime" } },
 	{ "Idle", { "IdleSlack", "IdleStepTime" } },
 	{ "Foot roll", { "HeelStrikeAngle", "FlatAt", "HeelRiseAt", "ToeOffAngle", "ToeBend", "FootPitchScale" } },
