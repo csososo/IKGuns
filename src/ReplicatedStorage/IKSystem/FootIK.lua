@@ -139,15 +139,6 @@ function FootIK:_measure()
 end
 
 --[[
-	Where the ANIMATION wants this ankle, by forward kinematics through the
-	leg's own joints.
-
-	Must be read before anything is written this frame. Motor6D solves
-	part1 = part0 * C0 * Transform * C1:Inverse(), so chaining that from the
-	hip outward reproduces the animated pose exactly, without the corrections
-	this module applied last frame.
-]]
---[[
 	The pelvis as the ANIMATION has it, with our own drop and roll undone.
 
 	The live pelvis carries last frame's correction, so forward kinematics
@@ -159,6 +150,15 @@ function FootIK:_restParent(leg): CFrame
 	return (self.prevOp or CFrame.identity):Inverse() * leg.hip.Part0.CFrame
 end
 
+--[[
+	Where the ANIMATION wants this ankle, by forward kinematics through the
+	leg's own joints.
+
+	Must be read before anything is written this frame. Motor6D solves
+	part1 = part0 * C0 * Transform * C1:Inverse(), so chaining that from the
+	hip outward reproduces the animated pose exactly, without the corrections
+	this module applied last frame.
+]]
 function FootIK:_animatedAnkle(leg): CFrame
 	--[[
 		Read each joint's CLEAN base, not its live Transform.
@@ -178,34 +178,32 @@ function FootIK:_animatedAnkle(leg): CFrame
 end
 
 --[[
-	The flat floor the animation assumes, from the root alone.
+	The floor the body as a whole is standing on -- live, every frame, with
+	nothing smoothing it.
 
-	HipHeight is ground to the bottom of the root part, so running that
-	backwards gives it. Deriving the correction against this, rather than
-	against an absolute height, is what makes it zero on level ground.
+	This used to raycast under the root and damp the result, which turns out
+	to be the one thing it must not do. The Humanoid climbs a step by
+	physically lifting the character; a reference that lags says the ground
+	under the body has not moved yet, so it invents a correction for a foot
+	that needs none and then unwinds it as the reference catches up. That
+	pump is the twitch, and it is worst at exactly the moment it is meant to
+	help.
+
+	Power IK's ground node does the same as this: its reference is a BONE,
+	normally the root, and what gets smoothed is the foot effector -- never
+	the plane. Deriving the floor from the root also means it can never
+	disagree with the body, whereas a raycast jumps a whole step the instant
+	its sample crosses an edge, while the body is still on its way up.
+
+	Root jitter is what the dead zone and the weight ramp are for.
 ]]
---[[
-	The ground the body as a whole is standing on.
-
-	Measured by raycasting under the root, NOT computed from the root's
-	height. Deriving it from root.Position.Y means every bob of the character
-	shifts the reference, which shows up as both feet reporting an identical
-	phantom correction at the same instant -- the giveaway being that real
-	terrain never changes under both feet simultaneously.
-
-	Falls back to the computed plane if nothing is underneath, so a character
-	over a gap still behaves.
-]]
-function FootIK:_groundPlaneY(params: RaycastParams): number?
+function FootIK:_floorY(): number?
 	local root = self.rig.parts.Root
 	if not root then
 		return nil
 	end
 	local hipHeight = self.rig.humanoid and self.rig.humanoid.HipHeight or 0
-	local computed = root.Position.Y - root.Size.Y * 0.5 - hipHeight
-
-	local hit = self:_sampleGround(Vector3.new(root.Position.X, computed, root.Position.Z), params)
-	return hit or computed
+	return root.Position.Y - root.Size.Y * 0.5 - hipHeight
 end
 
 function FootIK:Update(dt: number)
@@ -225,21 +223,10 @@ function FootIK:Update(dt: number)
 	params.FilterDescendantsInstances = { rig.character }
 	params.IgnoreWater = true
 
-	local measuredPlane = self:_groundPlaneY(params)
-	if not measuredPlane then
+	local floorY = self:_floorY()
+	if not floorY then
 		return
 	end
-
-	-- Filter the reference before anything depends on it: every correction
-	-- and the pelvis roll are all measured against this one number.
-	self.basePlane = self.basePlane
-		and Util.damp(self.basePlane, measuredPlane, cfg.PlaneSmoothTime, dt)
-		or measuredPlane
-	-- Snap rather than crawl if it has moved a long way, e.g. after a fall.
-	if math.abs(measuredPlane - self.basePlane) > 2 then
-		self.basePlane = measuredPlane
-	end
-	local basePlaneY = self.basePlane
 
 	self.dt = dt
 	-- Last frame's pelvis correction, so this frame can measure the animation
@@ -266,7 +253,7 @@ function FootIK:Update(dt: number)
 		local leg = self.legs[side]
 		if leg then
 			leg.wanted = nil
-			self:_measureLeg(leg, basePlaneY, params)
+			self:_measureLeg(leg, floorY, params)
 			if leg.wanted and (not datum or leg.bodyY < datum) then
 				datum = leg.bodyY
 			end
@@ -369,8 +356,18 @@ function FootIK:Update(dt: number)
 					side:sub(1, 1), leg.raw or 0, leg.delta, leg.weight,
 					leg.plant or 0, leg.lift or 0)
 			end
-			print(("[FootIK] plane=%.2f drop=%+.3f roll=%+.1fdeg | %s | %s"):format(
-				self.basePlane or 0, self.hipDrop, math.deg(self.hipRoll or 0),
+			--[[
+				Diagnostic only, and deliberately not fed back into anything:
+				how far the root-derived floor sits from the real one. A
+				standing offset here is a HipHeight that wants correcting,
+				and it would otherwise be invisible.
+			]]
+			local rootPart = rig.parts.Root
+			local probe = rootPart and self:_sampleGround(
+				Vector3.new(rootPart.Position.X, floorY, rootPart.Position.Z), params)
+			print(("[FootIK] floor=%.2f err=%+.3f drop=%+.3f roll=%+.1fdeg | %s | %s"):format(
+				floorY, probe and (probe - floorY) or 0,
+				self.hipDrop, math.deg(self.hipRoll or 0),
 				fmt("Left"), fmt("Right")))
 		end
 	end
@@ -405,7 +402,7 @@ end
 	Read where the animation has put this foot, and how far its ground differs
 	from the reference. Nothing is weighed here: that needs both legs.
 ]]
-function FootIK:_measureLeg(leg, basePlaneY: number, params: RaycastParams)
+function FootIK:_measureLeg(leg, floorY: number, params: RaycastParams)
 	local cfg = Config.FootIK
 	local animCF = self:_animatedAnkle(leg)
 	leg.animCF = animCF
@@ -430,7 +427,7 @@ function FootIK:_measureLeg(leg, basePlaneY: number, params: RaycastParams)
 		level ground, positive on a step up, negative over a drop. Note what
 		it does not depend on: where the foot currently is.
 	]]
-	local raw = math.clamp(hit - basePlaneY, -cfg.MaxStepDown, cfg.MaxStepUp)
+	local raw = math.clamp(hit - floorY, -cfg.MaxStepDown, cfg.MaxStepUp)
 
 	--[[
 		Smooth both the correction and its weight. Stepping onto or off a
@@ -475,8 +472,17 @@ function FootIK:_weighLeg(leg, datum: number?, grounded: boolean)
 	local lift = math.max(0, leg.bodyY - (datum or leg.bodyY) - cfg.PlantSlack)
 	local plant = 1 - math.clamp(lift / math.max(cfg.LiftThreshold, 1e-4), 0, 1)
 
-	local zone = math.max(cfg.DeadZone, 1e-4)
-	local wantWeight = math.clamp((math.abs(leg.delta) - zone) / zone, 0, 1) * plant
+	--[[
+		Ignore small differences, and ramp in over a step-sized range rather
+		than over the dead zone itself.
+
+		Ramping over the dead zone reached full strength at twice it -- about
+		a tenth of a stud -- which is inside the Humanoid's own vertical
+		wobble. The IK would then chase that wobble at near-full weight on
+		perfectly flat ground.
+	]]
+	local wantWeight = math.clamp(
+		(math.abs(leg.delta) - cfg.DeadZone) / math.max(cfg.RampWidth, 1e-4), 0, 1) * plant
 
 	--[[
 		In the air the IK has nothing to say, but it has to stop saying it

@@ -183,6 +183,17 @@ Config.FootIK = {
 	]]
 	DeadZone = 0.06,
 
+	--[[
+		Height difference, past the dead zone, at which the correction reaches
+		full strength.
+
+		Sized for a real step rather than for noise. This used to be the dead
+		zone itself, which meant full strength at about a tenth of a stud --
+		inside the Humanoid's own vertical wobble, so the IK chased that
+		wobble at near-full weight on flat ground.
+	]]
+	RampWidth = 0.25,
+
 	HipInfluence = 1,  -- 0 = never move the hips to help a foot reach
 
 	--[[
@@ -253,17 +264,6 @@ Config.FootIK = {
 		backstop for surfaces that change faster than smoothing can absorb.
 	]]
 	MaxCorrectionRate = 6,
-
-	--[[
-		Smoothing on the reference ground plane itself.
-
-		Straddling a level change puts the root right over the edge, so the
-		measurement flips between the two surfaces as you move. That shifts
-		BOTH feet's corrections at once and swings the pelvis roll with them.
-		Filtering the reference absorbs the flip-flop while still tracking a
-		genuine change in level within a fraction of a second.
-	]]
-	PlaneSmoothTime = 0.15,
 
 	-- Cap on how fast the pelvis may move, studs and radians per second.
 	MaxHipRate = 3,

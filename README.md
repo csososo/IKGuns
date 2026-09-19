@@ -178,6 +178,15 @@ than the flat floor the animation assumes, which comes from the root part and
 Setting an absolute foot height instead pins the foot to the floor, cancels
 the animation's own vertical motion, and straightens the legs out.
 
+That reference is taken **live from the root, never smoothed and never
+raycast**. Power IK does the same: its ground plane is a bone, normally the
+root, and what gets smoothed is the foot effector. Smoothing the reference
+looks harmless and is not — the Humanoid climbs a step by physically lifting
+the character, so a reference that lags claims the ground under the body has
+not moved yet, invents a correction for a foot that needs none, and unwinds
+it once it catches up. That pump was the twitch, and it peaked at exactly the
+moment it was meant to help. Root jitter is the dead zone's job instead.
+
 The animated pose is read by **forward kinematics through the joints'
 Transform values**, never from the live parts — the live parts still carry
 last frame's correction, so measuring from them measures this system's own
