@@ -661,8 +661,8 @@ Config.Sprint = profile({
 	AtSpeed = 26,
 	-- Longer flight, longer reach, and far more of the body involved.
 	DutyFactor = 0.28,
-	StepLength = 4.8,
-	StepHeight = 1.3,
+	StepLength = 5.8,
+	StepHeight = 0.75,
 	FootAhead = 0.2,
 	StrideSpeedRef = 26,
 
@@ -672,14 +672,14 @@ Config.Sprint = profile({
 
 	BobHeight = 0.18,
 	SwayWidth = 0.01,
-	LeanAngle = -22,
-	BodyYaw = -20,
+	LeanAngle = -32,
+	BodyYaw = -30,
 	PelvisList = 0.8,
-	ChestCounter = 0.9,
+	ChestCounter = 1.0,
 
-	ArmSwing = -48,
-	ElbowBend = 70,
-	ElbowSwing = 30,
+	ArmSwing = -66,
+	ElbowBend = 85,
+	ElbowSwing = 38,
 
 	-- A sprint is never really sideways, but the values still have to be
 	-- something if you turn hard at speed.
@@ -723,7 +723,7 @@ Config.SprintRanges = {
 	still used by the gait, it just does not get a slider.
 ]]
 Config.WalkRanges = {
-	StepLength = { 0.5, 6 },
+	StepLength = { 0.5, 9 },
 	StrideSpeedRef = { 4, 40 },
 	StrideExponent = { 0, 1 },
 	MinStrideScale = { 0.05, 1 },
@@ -741,8 +741,8 @@ Config.WalkRanges = {
 	BobPhase = { -1, 1 },
 	SwayWidth = { -0.5, 0.5 },
 	SwayPhase = { -1, 1 },
-	LeanAngle = { -25, 25 },
-	BodyYaw = { -20, 20 },
+	LeanAngle = { -45, 45 },
+	BodyYaw = { -45, 45 },
 	PelvisList = { -15, 15 },
 	PelvisListPhase = { -1, 1 },
 	ChestCounter = { 0, 1.5 },
@@ -752,9 +752,9 @@ Config.WalkRanges = {
 	ToeOffAngle = { 0, 45 },
 	ToeBend = { 0, 1.5 },
 	FootPitchScale = { -1.5, 1.5 },
-	ArmSwing = { -45, 45 },
+	ArmSwing = { -90, 90 },
 	ElbowBend = { -60, 60 },
-	ElbowSwing = { -60, 60 },
+	ElbowSwing = { -90, 90 },
 	MaxStride = { 1.2, 4 },
 	MaxReach = { 0.5, 1 },
 	PhaseRecover = { 0.05, 1.5 },
