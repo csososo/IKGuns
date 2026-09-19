@@ -856,6 +856,29 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 
 	local rest = self.stance:PointToWorldSpace(bodyCF:PointToObjectSpace(neutral))
 
+	--[[
+		The standing pose has to meet the real ground too.
+
+		Moving the ground sample onto the landing gave the swing its arc and
+		let a planted foot keep the height it planted at -- but it left the
+		resting pose on floorY, the flat floor derived from the root. So
+		standing anywhere uneven put both feet at that one height and
+		nothing adapted to anything, which looks like the IK having stopped
+		entirely. A foot that is merely standing somewhere still has to be
+		on whatever is there.
+
+		Stable by nature, since it is only used when the foot is not going
+		anywhere, and the foot speed ceiling below bounds it if the stance
+		frame shuffles across a change in level.
+	]]
+	local restY, restNormal = self:_ground(rest, params)
+	if restY then
+		rest = Vector3.new(rest.X, restY, rest.Z)
+		if self.blend <= SETTLED then
+			leg.normal = restNormal
+		end
+	end
+
 	place = rest:Lerp(place, self.blend)
 	lift *= self.blend
 	if self.blend <= SETTLED then
