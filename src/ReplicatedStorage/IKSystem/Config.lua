@@ -334,8 +334,21 @@ Config.Gait = "procedural"
 	so it cannot slide at any speed, and cadence rises with speed on its own.
 ]]
 Config.Walk = {
-	-- Ground covered by one full stride, in studs.
+	-- Ground covered by one full stride, in studs, at StrideSpeedRef.
 	StepLength = 2.776,
+	--[[
+		How stride and cadence split a change of pace.
+
+		Stride used to be constant at every speed, which splays the legs when
+		the direction alternates: the smoothed speed drops but the feet still
+		reach a full stride each way, so one plants hard left and the other
+		hard right. Real gait puts some of a change of pace into stride and
+		some into cadence; an exponent of 0.5 divides it evenly, and 1 would
+		put it all in stride and leave cadence fixed.
+	]]
+	StrideSpeedRef = 16,
+	StrideExponent = 0.5,
+	MinStrideScale = 0.3,
 	-- Peak lift of a swinging foot.
 	StepHeight = 0.621,
 	-- Extra spread between the feet, on top of the rig's own hip spacing.
@@ -550,6 +563,9 @@ Config.Walk = {
 ]]
 Config.WalkRanges = {
 	StepLength = { 0.5, 6 },
+	StrideSpeedRef = { 4, 40 },
+	StrideExponent = { 0, 1 },
+	MinStrideScale = { 0.05, 1 },
 	StepHeight = { 0, 2 },
 	StanceWidth = { -1, 1 },
 	DutyFactor = { 0.4, 0.9 },

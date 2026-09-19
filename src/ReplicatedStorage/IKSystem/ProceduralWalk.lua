@@ -30,8 +30,8 @@ ProceduralWalk.__index = ProceduralWalk
 -- Sign along the body's right axis, and the phase offset that puts the two
 -- legs half a stride apart.
 local SIDES = {
-	Left = { sign = -1, offset = 0 },
-	Right = { sign = 1, offset = 0.5 },
+	Left = { sign = -1, offset = 0, other = "Right" },
+	Right = { sign = 1, offset = 0.5, other = "Left" },
 }
 local ORDER = { "Left", "Right" }
 
@@ -349,10 +349,26 @@ function ProceduralWalk:Update(dt: number)
 		stops, so the leg slides instead of stepping. Shortening the stride
 		keeps BOTH feet stepping, and is what people actually do.
 	]]
+	--[[
+		Stride grows with speed, and cadence takes what is left over.
+
+		It was a constant at every speed, which is what splays the legs when
+		you jab A and D: the direction alternates, the smoothed speed drops
+		to about a third, and the feet still reach a full 2.78 studs each
+		way -- so one plants hard left, the other hard right.
+
+		Real gait splits a change of pace between stride and cadence rather
+		than putting it all in one. An exponent of 0.5 divides it evenly,
+		which also means neither grows as fast as speed does.
+	]]
+	local pace = math.clamp(self.speed / math.max(cfg.StrideSpeedRef, 0.1), 0, 2)
+	local scaled = cfg.StepLength
+		* math.clamp(pace ^ cfg.StrideExponent, cfg.MinStrideScale, 1.5)
+
 	local sideways = math.abs(moveDir:Dot(frame.RightVector))
 	local cap = math.max(self.separation or 0, 0.1) * cfg.SideStepRatio
 	local stepLength = math.max(
-		cfg.StepLength * (1 - sideways) + math.min(cfg.StepLength, cap) * sideways, 0.1)
+		scaled * (1 - sideways) + math.min(scaled, cap) * sideways, 0.1)
 
 	if moving then
 		self.cadence = self.speed * cfg.DutyFactor / stepLength
@@ -562,13 +578,25 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		The shift unwinds over the following strides, so the two legs come
 		back into alternation on their own.
 	]]
-	if not swinging and leg.anchor then
+	local other = self.legs[side.other]
+	if not swinging and leg.anchor and not (other and other.airborne) then
 		local held = Vector3.new(leg.anchor.X - hipPos.X, 0, leg.anchor.Z - hipPos.Z)
 		if held.Magnitude > limit then
 			leg.shift = (leg.shift + duty - p) % 1
 			p, swinging = duty, true
 		end
 	end
+
+	--[[
+		Never lift a foot while the other one is already up.
+
+		An early step is a convenience; having something to stand on is
+		not. DutyFactor below 0.5 already designs in a float phase -- at
+		0.439 that is 12% of every cycle with both feet off the ground --
+		and letting early steps stack on top of it is why rapid input made
+		the feet rise together.
+	]]
+	leg.airborne = swinging
 
 	local lift = 0
 	local place

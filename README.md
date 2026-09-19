@@ -213,6 +213,19 @@ sprint and runs full strides back and forth over the same patch of ground.
 Smoothing the vector cancels the way the movement does. Straight-line movement
 is unaffected: with a steady direction the two are the same thing.
 
+**Stride grows with speed, and cadence takes the rest.** A constant stride
+splays the legs whenever direction alternates: the smoothed speed drops but
+the feet still reach their full stride each way, so one plants hard left and
+the other hard right. Real gait divides a change of pace between the two, and
+`StrideExponent` sets the split — 0.5 shares it evenly, 1 puts it all in
+stride and leaves cadence fixed.
+
+**Never lift a foot while the other is up.** An early step is a convenience;
+having something to stand on is not. A `DutyFactor` below 0.5 already designs
+in a float phase — at 0.439 that is 12% of every cycle with both feet off the
+ground — so early steps are suppressed while the other leg is airborne rather
+than stacking on top of it.
+
 **Phase advances with distance, not time**, so cadence rises with speed on its
 own. Driving it off a clock means choosing a cadence, and then the feet skate
 whenever the real speed disagrees with it. It keeps advancing while the gait
