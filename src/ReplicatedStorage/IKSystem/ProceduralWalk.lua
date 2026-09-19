@@ -127,6 +127,8 @@ function ProceduralWalk:_measure()
 			shift = 0,
 			-- True while this foot is turning under itself to catch up.
 			pivoting = false,
+			-- Last frame's world position, for the foot speed ceiling.
+			last = nil,
 			-- The heading this foot landed on. Held for as long as it is
 			-- planted, so turning the body cannot spin a foot in place.
 			footRot = nil,
@@ -287,7 +289,20 @@ function ProceduralWalk:Update(dt: number)
 	local here = math.atan2(-from.X, -from.Z)
 	local there = math.atan2(-wanted.X, -wanted.Z)
 	local diff = (there - here + math.pi) % (math.pi * 2) - math.pi
-	local most = (dt / math.max(cfg.TurnTime, 1e-3)) * math.pi
+	--[[
+		An angular RATE, not "a reversal per TurnTime".
+
+		Phrased as a time-to-complete, a 45 degree input change finished in
+		under two frames -- 1500 degrees a second -- which swung the landing
+		target, four and a half studs out from the hip, at 126 studs per
+		second. A foot's own peak during a swing is about 43. That is the
+		snap when A or D is pressed or released against a held W: both the
+		press and the release are 45 degree changes, so both jump.
+
+		A rate makes small changes quick and large ones proportionate, which
+		is what the parameter was meant to mean all along.
+	]]
+	local most = math.rad(cfg.TurnRate) * dt
 	local yawed = here + math.clamp(diff, -most, most)
 	self.moveDir = Vector3.new(-math.sin(yawed), 0, -math.cos(yawed))
 	local moveDir = self.moveDir
@@ -596,6 +611,33 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 	if out.Magnitude > limit and out.Magnitude > 1e-4 then
 		place = Vector3.new(hipPos.X, place.Y, hipPos.Z) + out.Unit * limit
 	end
+
+	--[[
+		Nothing moves a foot faster than a foot can move.
+
+		A backstop over everything above, rather than a fix for any one
+		thing. Every snap so far has been some upstream value changing
+		faster than a leg could follow, and each was found only after it
+		shipped; a ceiling on the output catches the next one without
+		needing to know what it is.
+
+		Scaled by speed, because what counts as too fast depends on how
+		fast you are going, with a floor so it still holds at a crawl. A
+		genuine swing peaks near 2.7x body speed, so the ratio sits above
+		that and only bites on things no gait would ask for. Very large
+		jumps pass through untouched -- those are respawns and teleports,
+		and easing across the map would be worse than arriving.
+	]]
+	local previous = leg.last
+	if previous then
+		local moved = place - previous
+		local ceiling = math.max(self.speed * cfg.FootSpeedRatio, cfg.MinFootSpeed)
+			* (self.dt or 0)
+		if moved.Magnitude > ceiling and moved.Magnitude < 10 then
+			place = previous + moved.Unit * ceiling
+		end
+	end
+	leg.last = place
 
 	--[[
 		The standing position: under this hip, but in the STANCE frame

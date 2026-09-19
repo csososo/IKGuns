@@ -499,12 +499,33 @@ Config.Walk = {
 		Without slack here the feet orbit the body whenever it turns, which in
 		shift lock is every time you move the camera.
 	]]
+	--[[
+		Ceiling on how fast a foot may move, as a multiple of body speed and
+		as an absolute floor in studs per second.
+
+		A backstop rather than a fix for anything in particular: every snap
+		so far has been some upstream value changing faster than a leg could
+		follow, and each was only found after it shipped. A genuine swing
+		peaks near 2.7x body speed, so this sits above that and bites only on
+		what no gait would ask for.
+	]]
+	FootSpeedRatio = 3.5,
+	MinFootSpeed = 10,
+
 	IdleSlack = 0.5,
 	IdleStepTime = 0.25,
 	-- Seconds for a foot in the air to swing round to its landing heading.
 	FootTurnTime = 0.12,
-	-- Seconds for the movement direction itself to follow a change of input.
-	TurnTime = 0.12,
+	--[[
+		How fast the movement direction follows a change of input, in degrees
+		per second.
+
+		This was once a time-to-complete, which made a 45 degree change
+		finish in under two frames -- 1500 degrees a second. That swung the
+		landing target, nearly five studs out from the hip, at 126 studs per
+		second against a foot's own peak of about 43, and the leg snapped.
+	]]
+	TurnRate = 360,
 
 	-- Past this slope the foot stops trying to lie flat on it, radians.
 	MaxSlopeAngle = math.rad(50),
@@ -560,10 +581,12 @@ Config.WalkRanges = {
 	MaxFootLag = { 5, 90 },
 	PivotRate = { 45, 720 },
 	SideStepRatio = { 0.8, 3 },
+	FootSpeedRatio = { 1.5, 8 },
+	MinFootSpeed = { 2, 30 },
 	IdleSlack = { 0.1, 2 },
 	IdleStepTime = { 0.05, 1 },
 	FootTurnTime = { 0.02, 0.5 },
-	TurnTime = { 0.02, 0.5 },
+	TurnRate = { 90, 1080 },
 	MinSpeed = { 0.1, 4 },
 	BlendTime = { 0.02, 0.6 },
 	SpeedSmooth = { 0.01, 0.5 },
