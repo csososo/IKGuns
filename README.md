@@ -186,6 +186,17 @@ arms and feet chain off *that* rather than off the live parts. The live pelvis
 is last frame's answer, and feeding it back is what makes a procedural leg
 buzz.
 
+**The ground is sampled at the landing, not under the foot.** The swing then
+carries the foot from the height it left to the height it is going to.
+Sampling under the foot's current position makes it trace whatever terrain it
+happens to be passing over, including the vertical face of a step — so the
+whole rise happens in the single frame the foot crosses the edge, which is
+stairs appearing to be placed instantly. Arriving at the new height across the
+swing is both smoother and what a leg actually does: you lift to clear a step,
+you do not ride up its face. A planted foot needs no sampling at all, since
+its anchor carries the height it planted at and the ground cannot move under
+it.
+
 **Feet are planted, not placed.** During stance a foot holds a fixed world
 position and the hip travels away from it. That is the whole difference
 between walking and waving your legs about while you slide: positioning the

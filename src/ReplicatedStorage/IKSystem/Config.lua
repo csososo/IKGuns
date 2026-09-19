@@ -393,6 +393,16 @@ Config.Walk = {
 	FootAhead = -0.103,
 	-- Ankle joint height above the surface when the foot is flat.
 	AnkleHeight = 0.216,
+	--[[
+		Smoothing on the ground height a foot is aiming at, in seconds.
+
+		The swing already carries the foot from the height it left to the
+		height it is landing on, which is what stops a stair being climbed in
+		the single frame the foot crosses its edge. This only damps the
+		landing target itself, which moves while the swing runs and can cross
+		an edge of its own.
+	]]
+	GroundSmoothTime = 0.08,
 
 	-- Vertical bob of the body, twice per stride. Sign flips the phase.
 	BobHeight = 0.043,
@@ -606,6 +616,7 @@ Config.WalkRanges = {
 	DutyFactor = { 0.4, 0.9 },
 	FootAhead = { -1.5, 1.5 },
 	AnkleHeight = { 0, 1 },
+	GroundSmoothTime = { 0.01, 0.4 },
 	BobHeight = { -0.5, 0.5 },
 	BobPhase = { -1, 1 },
 	SwayWidth = { -0.5, 0.5 },

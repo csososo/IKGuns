@@ -739,6 +739,33 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		local left = (1 - t) * (1 - duty) / math.max(self.cadence, 1e-3)
 		local landing = neutral + self.velocity * left + moveDir * (stepLength * 0.5)
 
+		--[[
+			Sample the ground at the LANDING, and carry its height in the
+			target, so the swing interpolates from the height it left to
+			the height it is going to.
+
+			Sampling under the foot's current position instead makes it
+			trace the terrain it happens to be passing over, including the
+			vertical face of a step -- so the whole rise happens in the one
+			frame the foot crosses the edge. That is stairs being placed
+			instantly. Arriving at the new height over the course of the
+			swing is both smooth and what a leg actually does: you lift to
+			clear the step, you do not ride up its face.
+
+			Lightly damped as well, because the landing target moves while
+			the swing runs and can itself cross an edge.
+		]]
+		local landY, landNormal = self:_ground(landing, params)
+		landY = landY or floorY
+		leg.landY = leg.landY and Util.damp(leg.landY, landY, cfg.GroundSmoothTime, self.dt)
+			or landY
+		landing = Vector3.new(landing.X, leg.landY, landing.Z)
+
+		leg.normal = leg.normal
+			and leg.normal:Lerp(landNormal,
+				math.clamp((self.dt or 0) / math.max(cfg.GroundSmoothTime, 1e-3), 0, 1)).Unit
+			or landNormal
+
 		leg.from = leg.from or neutral
 		place = leg.from:Lerp(landing, t * t * (3 - 2 * t))
 		lift = swingLift(t, cfg.StepHeight + cfg.StrafeLift * sideways)
@@ -753,8 +780,11 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 			and never pushed against anything. Pinning it to the world and
 			letting the hip travel away from it is what makes a step a step.
 		]]
+		-- The anchor carries the height it planted at, so nothing needs
+		-- re-sampling: a planted foot's ground cannot move under it.
 		leg.anchor = leg.anchor or neutral
 		leg.from = leg.anchor
+		leg.landY = nil
 		place = leg.anchor
 	end
 
@@ -940,9 +970,9 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 	]]
 	local pivotLift = math.max(0, math.sin(-pitch)) * leg.toeAhead
 
-	local surface, normal = self:_ground(plant, params)
+	local normal = leg.normal or Vector3.yAxis
 	local target = Vector3.new(plant.X,
-		(surface or floorY) + cfg.AnkleHeight + lift + pivotLift, plant.Z)
+		plant.Y + cfg.AnkleHeight + lift + pivotLift, plant.Z)
 
 	--[[
 		The knee points where the FOOT points, not where the body faces.
