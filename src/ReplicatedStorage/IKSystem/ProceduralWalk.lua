@@ -42,6 +42,7 @@ function ProceduralWalk.new(rig)
 	self.phase = 0
 	self.blend = 0
 	self.speed = 0
+	self.cadence = 0
 	self:_measure()
 
 	--[[
@@ -111,9 +112,14 @@ function ProceduralWalk:_measure()
 			ankleInPart = ankle.C1.Position,
 			-- All optional. Each feature is skipped if its joint is absent.
 			shoulder = rig:FindMotor(cfg.ShoulderJoint:format(side)),
+			elbow = rig:FindMotor(cfg.ElbowJoint:format(side)),
 			heel = rig:FindMotor(cfg.HeelJoint:format(side)),
 			toe = toe,
 			toeAhead = toeAhead,
+			-- Where this foot is planted in the world, and where its current
+			-- swing started. Both nil until the first frame places them.
+			anchor = nil,
+			from = nil,
 		}
 	end
 end
@@ -145,22 +151,10 @@ function ProceduralWalk:_ground(at: Vector3, params: RaycastParams): (number?, V
 	return nil, Vector3.yAxis
 end
 
---[[
-	Where this foot should be, as an offset along and across the body.
-
-	Stance runs the foot straight backwards at a constant rate -- that is the
-	part that must be linear, because any easing there IS foot sliding. Swing
-	is free to ease, and does, so the foot leaves and lands softly instead of
-	snapping to the next stance.
-]]
-local function stride(p: number, duty: number, length: number, height: number): (number, number)
-	local half = length * 0.5
-	if p < duty then
-		return half - length * (p / duty), 0
-	end
-	local t = (p - duty) / math.max(1 - duty, 1e-4)
-	local eased = t * t * (3 - 2 * t)
-	return -half + length * eased, math.sin(math.pi * t) * height
+-- Height of the swing arc, nil at both ends so the foot leaves and meets the
+-- ground rather than arriving at it sideways.
+local function swingLift(t: number, height: number): number
+	return math.sin(math.pi * t) * height
 end
 
 --[[
@@ -256,8 +250,21 @@ function ProceduralWalk:Update(dt: number)
 	]]
 	if moving then
 		local length = math.max(cfg.StepLength, 0.1)
-		self.phase = (self.phase + (self.speed * cfg.DutyFactor / length) * dt) % 1
+		self.cadence = self.speed * cfg.DutyFactor / length
 	end
+
+	--[[
+		Keep the cycle turning while the gait folds away.
+
+		Freezing the phase the instant you stop leaves the legs stuck
+		mid-stride while the stride shrinks around them, which is exactly
+		what "it freezes, then goes back to idle" looks like. Letting it
+		keep advancing -- scaled by the blend, so it slows as it fades --
+		finishes the step that was in progress and decelerates into the
+		stance instead.
+	]]
+	self.phase = (self.phase
+		+ (self.cadence or 0) * (moving and 1 or self.blend) * dt) % 1
 
 	local turns = math.pi * 2
 	local bob = math.sin((self.phase * 2 + cfg.BobPhase) * turns) * cfg.BobHeight * self.blend
@@ -296,12 +303,14 @@ function ProceduralWalk:Update(dt: number)
 	local pelvisCF = op * restPelvis * CFrame.Angles(lean, yaw, 0)
 	rootMotor.Transform = parentCF:Inverse() * pelvisCF * rootMotor.C1
 
-	self:_spine(pelvisCF, yaw)
+	local chestCF = self:_spine(pelvisCF, yaw)
+	local duty = math.clamp(cfg.DutyFactor, 0.05, 0.95)
 
 	for _, side in ORDER do
 		local leg = self.legs[side]
 		if leg then
 			self:_leg(leg, SIDES[side], frame, pelvisCF, floorY, params)
+			self:_arm(leg, (self.phase + SIDES[side].offset) % 1, chestCF, frame)
 		end
 	end
 end
@@ -322,7 +331,7 @@ function ProceduralWalk:_spine(pelvisCF: CFrame, yaw: number)
 	local cfg = Config.Walk
 	local spine = self.rig.spine
 	if not spine then
-		return
+		return pelvisCF
 	end
 
 	local parent = pelvisCF
@@ -337,6 +346,7 @@ function ProceduralWalk:_spine(pelvisCF: CFrame, yaw: number)
 		motor.Transform = transform
 		parent = base * transform * motor.C1:Inverse()
 	end
+	return parent
 end
 
 function ProceduralWalk:_leg(leg, side, frame: CFrame, pelvisCF: CFrame, floorY: number, params: RaycastParams)
@@ -345,27 +355,89 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, pelvisCF: CFrame, floorY:
 	local hipCF = pelvisCF * leg.hip.C0
 	local hipPos = hipCF.Position
 
+	local duty = math.clamp(cfg.DutyFactor, 0.05, 0.95)
 	local p = (self.phase + side.offset) % 1
-	local along, lift = stride(p, math.clamp(cfg.DutyFactor, 0.05, 0.95),
-		cfg.StepLength, cfg.StepHeight)
+	local swinging = p >= duty
 
 	--[[
-		Fold the gait away rather than switching it off.
+		Where this foot would stand with no gait at all: under its own hip.
 
-		At blend 0 the stride and the lift both vanish and the foot sits
-		directly under its own hip, which IS the standing pose -- so idle
-		costs no separate code path and there is nothing to pop between.
-		Stance width and the forward bias survive, because those are posture
-		and posture does not stop when you do.
+		This is both the idle pose and the reference everything else is
+		measured from, so idle needs no separate code path. Stance width and
+		the forward bias are posture rather than gait, so they apply even
+		standing still.
 	]]
-	along = along * self.blend + cfg.FootAhead
-	lift = lift * self.blend
-
-	local plant = Vector3.new(hipPos.X, floorY, hipPos.Z)
-		+ frame.LookVector * along
+	local neutral = Vector3.new(hipPos.X, floorY, hipPos.Z)
+		+ frame.LookVector * cfg.FootAhead
 		+ frame.RightVector * (side.sign * cfg.StanceWidth * 0.5)
 
-	local pitch, toeBend = footRoll(p, math.clamp(cfg.DutyFactor, 0.05, 0.95), cfg)
+	local lift = 0
+	local place
+
+	if swinging then
+		local t = (p - duty) / math.max(1 - duty, 1e-4)
+
+		--[[
+			Aim at where the body WILL be, not where it is.
+
+			The body covers (1-duty)/duty step lengths during one swing, and
+			that ratio does not depend on speed -- a faster walk has a
+			proportionally shorter swing. Recomputing the remaining travel
+			every frame rather than committing at lift-off means a turn
+			mid-stride redirects the step instead of planting it where you
+			used to be going.
+
+			At t=1 the remaining travel is zero, so the target is simply half
+			a stride ahead of the hip: a heel strike.
+		]]
+		local remaining = cfg.StepLength * (1 - duty) / duty * (1 - t)
+		local landing = neutral + frame.LookVector * (remaining + cfg.StepLength * 0.5)
+
+		leg.from = leg.from or neutral
+		place = leg.from:Lerp(landing, t * t * (3 - 2 * t))
+		lift = swingLift(t, cfg.StepHeight)
+		leg.anchor = landing
+	else
+		--[[
+			STANCE: the foot does not move. At all.
+
+			This is the difference between walking and waving your legs
+			about while you slide. Previously the foot was positioned
+			relative to the hip every frame, so it tracked the body exactly
+			and never pushed against anything. Pinning it to the world and
+			letting the hip travel away from it is what makes a step a step.
+		]]
+		leg.anchor = leg.anchor or neutral
+		leg.from = leg.anchor
+		place = leg.anchor
+	end
+
+	--[[
+		A planted foot the hips have walked away from -- a hard turn, a
+		sudden speed change, a shove -- would otherwise stretch the leg until
+		the solver clamps and the foot visibly tears off its anchor. Slide
+		the anchor in instead, proportionally to how far past the limit it
+		has got.
+	]]
+	local reach = (Vector3.new(place.X - hipPos.X, 0, place.Z - hipPos.Z)).Magnitude
+	local limit = math.max(cfg.StepLength, 0.1) * cfg.MaxStride
+	if reach > limit then
+		local slide = math.clamp((reach - limit) / limit, 0, 1)
+		place = place:Lerp(neutral, slide)
+		leg.anchor = leg.anchor:Lerp(neutral, slide)
+	end
+
+	-- Fold the whole gait back to the standing pose as the blend drops.
+	place = neutral:Lerp(place, self.blend)
+	lift *= self.blend
+	if self.blend < 0.01 then
+		leg.anchor = neutral
+		leg.from = neutral
+	end
+
+	local plant = place
+
+	local pitch, toeBend = footRoll(p, duty, cfg)
 	local gain = cfg.FootPitchScale * self.blend
 	pitch, toeBend = pitch * gain, toeBend * gain
 
@@ -438,14 +510,51 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, pelvisCF: CFrame, floorY:
 		leg.toe.Transform = base:Inverse() * turn * base
 	end
 
-	--[[
-		Arms swing against the leg on the same side, which is what stops a
-		walk reading as a shuffle. Half a stride out of phase with this leg.
-	]]
-	if leg.shoulder and math.abs(cfg.ArmSwing) > 1e-3 then
-		local swing = math.sin((p + 0.5) * math.pi * 2) * math.rad(cfg.ArmSwing) * self.blend
-		leg.shoulder.Transform = CFrame.Angles(swing, 0, 0)
+end
+
+--[[
+	The arm for this leg, swinging against it.
+
+	A shoulder rotating on its own is the thing that reads as a mannequin:
+	real arm swing bends at the elbow too, and bends FURTHER as the arm comes
+	forward. The elbow also never straightens fully, even standing still, so
+	its resting bend is posture and survives the blend.
+
+	Chained off the chest this module computed rather than the live part,
+	like everything else here.
+]]
+function ProceduralWalk:_arm(leg, p: number, chestCF: CFrame, frame: CFrame)
+	if not leg.shoulder then
+		return
 	end
+	local cfg = Config.Walk
+
+	-- Half a cycle out of phase with its own leg: left arm forward with the
+	-- right leg, which is what the counter-rotating torso is doing anyway.
+	local forward = math.sin(((p + 0.5) % 1) * math.pi * 2)
+
+	local shoulderBase = chestCF * leg.shoulder.C0
+	local swing = math.rad(cfg.ArmSwing) * forward * self.blend
+	local turn = (math.abs(swing) > 1e-5)
+		and Util.rotateAboutWorld(shoulderBase.Position, frame.RightVector, swing)
+		or CFrame.identity
+	local shoulderT = shoulderBase:Inverse() * turn * shoulderBase
+	leg.shoulder.Transform = shoulderT
+
+	if not leg.elbow then
+		return
+	end
+
+	-- 0 at the back of the swing, 1 at the front.
+	local ahead = 0.5 + 0.5 * forward
+	local bend = math.rad(cfg.ElbowBend) + math.rad(cfg.ElbowSwing) * ahead * self.blend
+
+	local upperCF = shoulderBase * shoulderT * leg.shoulder.C1:Inverse()
+	local elbowBase = upperCF * leg.elbow.C0
+	local flex = (math.abs(bend) > 1e-5)
+		and Util.rotateAboutWorld(elbowBase.Position, frame.RightVector, bend)
+		or CFrame.identity
+	leg.elbow.Transform = elbowBase:Inverse() * flex * elbowBase
 end
 
 --[[
@@ -465,7 +574,7 @@ function ProceduralWalk:Reset()
 	for _, side in ORDER do
 		local leg = self.legs[side]
 		if leg then
-			for _, key in { "hip", "knee", "ankle", "shoulder", "heel", "toe" } do
+			for _, key in { "hip", "knee", "ankle", "shoulder", "elbow", "heel", "toe" } do
 				if leg[key] then
 					leg[key].Transform = CFrame.identity
 				end

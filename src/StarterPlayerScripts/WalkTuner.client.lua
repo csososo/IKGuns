@@ -34,10 +34,11 @@ local DIM = Color3.fromRGB(150, 150, 160)
 	rides on top of it, then the response.
 ]]
 local GROUPS = {
-	{ "Step", { "StepLength", "StepHeight", "DutyFactor", "StanceWidth", "FootAhead", "AnkleHeight" } },
+	{ "Step", { "StepLength", "StepHeight", "DutyFactor", "StanceWidth", "FootAhead", "AnkleHeight", "MaxStride" } },
 	{ "Foot roll", { "HeelStrikeAngle", "FlatAt", "HeelRiseAt", "ToeOffAngle", "ToeBend", "FootPitchScale" } },
 	{ "Body", { "BobHeight", "BobPhase", "SwayWidth", "SwayPhase", "LeanAngle" } },
-	{ "Pelvis", { "BodyYaw", "PelvisList", "PelvisListPhase", "ChestCounter", "ArmSwing" } },
+	{ "Pelvis", { "BodyYaw", "PelvisList", "PelvisListPhase", "ChestCounter" } },
+	{ "Arms", { "ArmSwing", "ElbowBend", "ElbowSwing" } },
 	{ "Response", { "MinSpeed", "BlendTime", "SpeedSmooth", "LeanSpeed" } },
 }
 
@@ -51,11 +52,10 @@ gui.Enabled = Config.Gait == "procedural"
 gui.Parent = player:WaitForChild("PlayerGui")
 
 local root = Instance.new("Frame")
-root.Size = UDim2.fromOffset(WIDTH, 20)
+root.Size = UDim2.new(0, WIDTH, 0.7, 0)
 root.Position = UDim2.new(1, -(WIDTH + 16), 0, 60)
 root.BackgroundColor3 = BG
 root.BorderSizePixel = 0
-root.AutomaticSize = Enum.AutomaticSize.Y
 root.Active = true
 root.Draggable = true
 root.Parent = gui
@@ -64,17 +64,43 @@ local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 6)
 corner.Parent = root
 
+--[[
+	The sliders scroll, because there are more of them than fit on a screen
+	and a panel that runs off the bottom edge silently loses its last group.
+	Dragging the header still moves the whole thing.
+]]
+local header = Instance.new("TextLabel")
+header.Size = UDim2.new(1, -PAD * 2, 0, 22)
+header.Position = UDim2.fromOffset(PAD, PAD)
+header.BackgroundTransparency = 1
+header.Font = Enum.Font.Code
+header.TextSize = 13
+header.TextColor3 = TEXT
+header.TextXAlignment = Enum.TextXAlignment.Left
+header.Text = "WALK TUNER    ]  hide"
+header.Parent = root
+
+local body = Instance.new("ScrollingFrame")
+body.Size = UDim2.new(1, 0, 1, -(22 + PAD * 2))
+body.Position = UDim2.fromOffset(0, 22 + PAD)
+body.BackgroundTransparency = 1
+body.BorderSizePixel = 0
+body.ScrollBarThickness = 4
+body.ScrollBarImageColor3 = TRACK
+body.AutomaticCanvasSize = Enum.AutomaticSize.Y
+body.CanvasSize = UDim2.new()
+body.Parent = root
+
 local layout = Instance.new("UIListLayout")
 layout.Padding = UDim.new(0, 2)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.Parent = root
+layout.Parent = body
 
 local pad = Instance.new("UIPadding")
-pad.PaddingTop = UDim.new(0, PAD)
 pad.PaddingBottom = UDim.new(0, PAD)
 pad.PaddingLeft = UDim.new(0, PAD)
-pad.PaddingRight = UDim.new(0, PAD)
-pad.Parent = root
+pad.PaddingRight = UDim.new(0, PAD + 4)
+pad.Parent = body
 
 local order = 0
 local function nextOrder(): number
@@ -92,11 +118,9 @@ local function label(text: string, size: number, colour: Color3): TextLabel
 	l.TextXAlignment = Enum.TextXAlignment.Left
 	l.Text = text
 	l.LayoutOrder = nextOrder()
-	l.Parent = root
+	l.Parent = body
 	return l
 end
-
-label("WALK TUNER    ]  hide", 13, TEXT)
 
 --[[
 	One slider per value.
@@ -109,10 +133,10 @@ local function slider(key: string, min: number, max: number)
 	row.Size = UDim2.new(1, 0, 0, ROW)
 	row.BackgroundTransparency = 1
 	row.LayoutOrder = nextOrder()
-	row.Parent = root
+	row.Parent = body
 
 	local name = Instance.new("TextLabel")
-	name.Size = UDim2.new(0, 108, 1, 0)
+	name.Size = UDim2.new(0, 104, 1, 0)
 	name.BackgroundTransparency = 1
 	name.Font = Enum.Font.Code
 	name.TextSize = 12
@@ -122,8 +146,8 @@ local function slider(key: string, min: number, max: number)
 	name.Parent = row
 
 	local track = Instance.new("Frame")
-	track.Size = UDim2.new(1, -168, 0, 6)
-	track.Position = UDim2.new(0, 108, 0.5, -3)
+	track.Size = UDim2.new(1, -164, 0, 6)
+	track.Position = UDim2.new(0, 104, 0.5, -3)
 	track.BackgroundColor3 = TRACK
 	track.BorderSizePixel = 0
 	track.Active = true
@@ -233,7 +257,7 @@ copy.TextSize = 12
 copy.TextColor3 = TEXT
 copy.Text = "Copy to Output"
 copy.LayoutOrder = nextOrder()
-copy.Parent = root
+copy.Parent = body
 
 local copyCorner = Instance.new("UICorner")
 copyCorner.CornerRadius = UDim.new(0, 4)

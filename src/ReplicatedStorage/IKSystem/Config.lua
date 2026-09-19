@@ -382,6 +382,16 @@ Config.Walk = {
 	ChestCounter = 0.6,
 	-- Shoulder swing, degrees, opposite the leg on the same side.
 	ArmSwing = 27.931,
+	--[[
+		Elbow flexion, degrees.
+
+		ElbowBend is posture: a real arm never straightens fully, even standing
+		still, so this is not blended away. ElbowSwing is the extra flexion as
+		the arm comes forward, which is the part that stops a swinging arm
+		reading as a broomstick on a hinge.
+	]]
+	ElbowBend = 10,
+	ElbowSwing = 22,
 
 	-- Below this ground speed the gait folds back to a neutral stance.
 	MinSpeed = 0.6,
@@ -415,6 +425,17 @@ Config.Walk = {
 	-- Ankle-to-toe length for the push-off lift. 0 measures it off the rig.
 	ToeAhead = 0,
 
+	--[[
+		How far a planted foot may end up from its hip, as a multiple of
+		StepLength, before its anchor is dragged back in.
+
+		A stance foot is pinned in the world, so a hard turn or a sudden speed
+		change can leave the hips walking away from it. Without this the leg
+		stretches until the solver clamps and the foot visibly tears off the
+		anchor.
+	]]
+	MaxStride = 2.2,
+
 	-- Past this slope the foot stops trying to lie flat on it, radians.
 	MaxSlopeAngle = math.rad(50),
 	-- Ground probe around the step target.
@@ -426,6 +447,7 @@ Config.Walk = {
 	AnkleJoint = "%sAnkle",
 	-- Optional. Arm swing is skipped silently if this does not resolve.
 	ShoulderJoint = "%sShoulder",
+	ElbowJoint = "%sElbow",
 	-- Also optional: without these the foot cannot roll and stays flat.
 	HeelJoint = "%sHeelBase",
 	ToeJoint = "%sForefoot",
@@ -458,6 +480,9 @@ Config.WalkRanges = {
 	ToeBend = { 0, 1.5 },
 	FootPitchScale = { -1.5, 1.5 },
 	ArmSwing = { -45, 45 },
+	ElbowBend = { -60, 60 },
+	ElbowSwing = { -60, 60 },
+	MaxStride = { 1.2, 4 },
 	MinSpeed = { 0.1, 4 },
 	BlendTime = { 0.02, 0.6 },
 	SpeedSmooth = { 0.01, 0.5 },
