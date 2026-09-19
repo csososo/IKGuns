@@ -123,6 +123,8 @@ function ProceduralWalk:_measure()
 			-- swing started. Both nil until the first frame places them.
 			anchor = nil,
 			from = nil,
+			-- Phase offset from an early step, unwound over later strides.
+			shift = 0,
 			-- The heading this foot landed on. Held for as long as it is
 			-- planted, so turning the body cannot spin a foot in place.
 			footRot = nil,
@@ -486,8 +488,13 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 	local hipPos = hipCF.Position
 
 	local duty = math.clamp(cfg.DutyFactor, 0.05, 0.95)
-	local p = (self.phase + side.offset) % 1
+	local p = (self.phase + side.offset + leg.shift) % 1
 	local swinging = p >= duty
+
+	-- Furthest the foot may be from its hip: the shorter of a stride limit
+	-- and what the leg can physically reach.
+	local limit = math.min(stepLength * cfg.MaxStride,
+		(leg.bone.l1 + leg.bone.l2) * cfg.MaxReach)
 
 	--[[
 		Where this foot would stand with no gait at all: under its own hip.
@@ -500,6 +507,32 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 	local neutral = Vector3.new(hipPos.X, floorY, hipPos.Z)
 		+ frame.LookVector * cfg.FootAhead
 		+ frame.RightVector * (side.sign * cfg.StanceWidth * 0.5)
+
+	--[[
+		Out of reach while planted: STEP, do not slide.
+
+		Dragging the anchor onto the reach circle bounds the problem and
+		looks terrible -- the circle moves with the hip, so every frame
+		re-clamps and the foot skates along at arm's length. Reversing a
+		strafe does this continuously, which is the fast, unsmooth
+		replanting.
+
+		A person does not slide the foot; they pick it up early and put it
+		down again. Jumping this leg's phase to the start of its swing is
+		exactly that, and it is free: swing begins at the current anchor,
+		so the foot does not move on the frame it happens. Everything after
+		is the ordinary swing -- a real arc, a real landing, a real plant.
+
+		The shift unwinds over the following strides, so the two legs come
+		back into alternation on their own.
+	]]
+	if not swinging and leg.anchor then
+		local held = Vector3.new(leg.anchor.X - hipPos.X, 0, leg.anchor.Z - hipPos.Z)
+		if held.Magnitude > limit then
+			leg.shift = (leg.shift + duty - p) % 1
+			p, swinging = duty, true
+		end
+	end
 
 	local lift = 0
 	local place
@@ -543,13 +576,6 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 	end
 
 	--[[
-		A planted foot the hips have walked away from -- a hard turn, a
-		sudden speed change, a shove -- would otherwise stretch the leg until
-		the solver clamps and the foot visibly tears off its anchor. Slide
-		the anchor in instead, proportionally to how far past the limit it
-		has got.
-	]]
-	--[[
 		An anchor the hips have walked away from is pulled back to arm's
 		length, hard.
 
@@ -565,13 +591,8 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		and being dragged is what actually happens to you.
 	]]
 	local out = Vector3.new(place.X - hipPos.X, 0, place.Z - hipPos.Z)
-	local limit = math.min(stepLength * cfg.MaxStride,
-		(leg.bone.l1 + leg.bone.l2) * cfg.MaxReach)
 	if out.Magnitude > limit and out.Magnitude > 1e-4 then
 		place = Vector3.new(hipPos.X, place.Y, hipPos.Z) + out.Unit * limit
-		if not swinging then
-			leg.anchor = place
-		end
 	end
 
 	--[[
@@ -583,6 +604,16 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		turning the camera in shift lock does not drag the feet round with
 		it. The stance frame catches up separately, as a shuffle.
 	]]
+	--[[
+		Unwind an early step's phase shift, but only while the leg is in the
+		air -- the swing arc absorbs a small change in t, whereas doing it
+		in stance would slide a planted foot, which is the thing the early
+		step existed to avoid.
+	]]
+	if swinging and leg.shift > 1e-4 then
+		leg.shift = math.max(0, leg.shift - cfg.PhaseRecover * (self.dt or 0))
+	end
+
 	local rest = self.stance:PointToWorldSpace(bodyCF:PointToObjectSpace(neutral))
 
 	place = rest:Lerp(place, self.blend)

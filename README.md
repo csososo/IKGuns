@@ -196,8 +196,15 @@ Swing interpolates from the lift-off anchor to a predicted landing. The body
 covers `(1-duty)/duty` step lengths during one swing, a ratio that does not
 depend on speed, and the remaining travel is recomputed every frame — so
 turning mid-stride redirects the step instead of planting it where you used to
-be going. `MaxStride` drags an anchor back in if the hips walk away from it,
-before the solver clamps and the foot visibly tears off its plant.
+be going. When a planted foot runs out of reach — a reversal, a hard turn — it
+**steps early rather than sliding**. Dragging the anchor onto the reach
+circle bounds the problem and looks terrible: the circle moves with the hip,
+so every frame re-clamps and the foot skates along at arm's length. Jumping
+that leg's phase to the start of its swing costs nothing, because swing
+begins at the current anchor and the foot does not move on the frame it
+happens; everything after is an ordinary swing with a real arc and a real
+plant. The resulting phase shift unwinds over the following strides, in the
+air only, so the legs come back into alternation on their own.
 
 **Phase advances with distance, not time**, so cadence rises with speed on its
 own. Driving it off a clock means choosing a cadence, and then the feet skate

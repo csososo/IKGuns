@@ -443,6 +443,16 @@ Config.Walk = {
 		stopped moving.
 	]]
 	MaxReach = 0.9,
+	--[[
+		How fast an early step's phase shift unwinds, in cycles per second.
+
+		A foot that runs out of reach steps early rather than sliding, which
+		puts that leg out of alternation with the other one. This brings them
+		back together over the following strides. Too fast and the recovery
+		itself becomes visible; too slow and a burst of direction changes
+		leaves the legs hopping together.
+	]]
+	PhaseRecover = 0.3,
 
 	--[[
 		How far the feet point along the direction of travel rather than along
@@ -535,6 +545,7 @@ Config.WalkRanges = {
 	ElbowSwing = { -60, 60 },
 	MaxStride = { 1.2, 4 },
 	MaxReach = { 0.5, 1 },
+	PhaseRecover = { 0.05, 1.5 },
 	FootTurnToMove = { 0, 1 },
 	MaxFootYaw = { 0, 60 },
 	MaxFootLag = { 5, 90 },
