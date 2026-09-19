@@ -93,8 +93,7 @@ Weights are in `Config.Aim.SpineJoints`.
      itself).
    - `src/StarterPlayerScripts/` → LocalScripts in
      `StarterPlayer > StarterPlayerScripts`: `IKController` drives the system,
-     `CharacterAnimator` plays the clips, `WalkTuner` is the gait panel,
-     `ViewTool` watches the character from any angle.
+     `CharacterAnimator` plays the clips, `WalkTuner` is the gait panel.
    - `src/ServerScriptService/CharacterSetup.server.lua` → a Script in
      `ServerScriptService`.
 2. Press play. Walk onto a slope — feet should tilt and meet it.
@@ -428,20 +427,6 @@ Arms swing against the leg on the same side, and **bend**. A shoulder rotating
 on its own is what reads as a mannequin. `ElbowBend` is posture and survives
 the blend, because a real arm never straightens even standing still;
 `ElbowSwing` is the extra flexion as the arm comes forward.
-
-### Watching it
-
-Press `P` for **ViewTool**. The gait is client-local — nothing about it
-replicates — so Studio's Server view and a second test client both show the
-rig standing perfectly still. The only place the walk exists is your own
-client, so the camera has to come to you.
-
-Roblox movement is camera-relative, which means pointing the camera at your
-own face makes `W` walk towards it and you cannot hold a direction and study
-it. ViewTool takes the controls over and drives the Humanoid in **world
-axes**: `W` is the same compass direction whatever the camera is doing. Orbit
-with right-drag, zoom on the wheel, `C` to swing round and face the character
-head on.
 
 ### Tuning it
 
