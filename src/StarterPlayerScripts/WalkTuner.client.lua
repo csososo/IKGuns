@@ -58,14 +58,14 @@ local refresh = {}
 	rides on top of it, then the response.
 ]]
 local GROUPS = {
-	{ "Step", { "StepLength", "StrideSpeedRef", "StrideExponent", "MinStrideScale", "StepHeight", "DutyFactor", "StanceWidth", "FootAhead", "AnkleHeight", "GroundSmoothTime", "MaxStride", "MaxReach", "PhaseRecover" } },
+	{ "Step", { "StepLength", "StrideSpeedRef", "StrideExponent", "MinStrideScale", "StepHeight", "SwingTuck", "LiftSkew", "DutyFactor", "StanceWidth", "FootAhead", "AnkleHeight", "GroundSmoothTime", "MaxStride", "MaxReach", "PhaseRecover" } },
 	{ "Strafe", { "StrafeStagger", "StrafeCross", "StrafeWidth", "StrafeLift", "SideStepRatio" } },
 	{ "Direction", { "FootTurnToMove", "MaxFootYaw", "MaxFootLag", "PivotRate", "KneeFollowsFoot", "FootTurnTime", "FootSpeedRatio", "MinFootSpeed" } },
 	{ "Idle", { "IdleSlack", "IdleStepTime" } },
 	{ "Foot roll", { "HeelStrikeAngle", "FlatAt", "HeelRiseAt", "ToeOffAngle", "ToeBend", "FootPitchScale" } },
 	{ "Body", { "BobHeight", "BobPhase", "SwayWidth", "SwayPhase", "LeanAngle" } },
 	{ "Pelvis", { "BodyYaw", "PelvisList", "PelvisListPhase", "ChestCounter" } },
-	{ "Arms", { "ArmSwing", "ElbowBend", "ElbowSwing" } },
+	{ "Arms", { "ArmSwing", "ArmLift", "ElbowBend", "ElbowSwing" } },
 	{ "Response", { "MinSpeed", "BlendTime", "SpeedSmooth", "LeanSpeed" } },
 	-- The speed this profile represents; the gait blends between them.
 	{ "Gait", { "AtSpeed" } },
