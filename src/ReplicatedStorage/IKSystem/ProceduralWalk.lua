@@ -754,23 +754,30 @@ function ProceduralWalk:_leg(leg, side, frame: CFrame, moveDir: Vector3, stepLen
 		splayed where the last step left them.
 	]]
 	--[[
-		As an ANGLE off the body's facing, not a lerp between two direction
-		vectors. Lerping them collapses to zero length when travel is
-		opposite the facing, and before that it points the feet backwards
-		when walking backwards -- which nobody does. Folding the yaw
-		difference into the front half throws the reversal away and keeps
-		only how far off-axis the travel is, so backwards behaves like
-		forwards and a diagonal gets a real, clampable angle.
+		How far to turn the feet towards the direction of travel, as a
+		smooth curve with no branch in it.
+
+		This used to fold the angle into the front half, so that walking
+		backwards behaved like walking forwards. The fold's boundary sits
+		at exactly ninety degrees off the facing -- which is precisely
+		pure lateral travel, i.e. strafing, the one case it most needed to
+		get right. atan2 returns exactly pi/2 there, so the feet turned 25
+		degrees INTO the strafe or 25 degrees away from it depending on
+		which side of the boundary floating-point noise landed, and
+		flipped between the two. That is the feet pointing the wrong way.
+
+		sin(2 * angle) has the symmetry the fold was reaching for and no
+		boundary: zero straight ahead, zero straight sideways, peaking on
+		the diagonals, and antisymmetric about ninety degrees so backwards
+		mirrors forwards. Zero at pure lateral is also right on its own
+		terms -- you side-step with your feet square to you, not swivelled
+		into the direction you are sliding.
 	]]
 	local off = math.atan2(moveDir:Dot(frame.RightVector), moveDir:Dot(frame.LookVector))
+	local footYaw = math.rad(cfg.MaxFootYaw)
+		* math.clamp(cfg.FootTurnToMove, 0, 1)
+		* math.sin(2 * off)
 		* self.blend
-	if off > math.pi * 0.5 then
-		off -= math.pi
-	elseif off < -math.pi * 0.5 then
-		off += math.pi
-	end
-	local maxYaw = math.rad(cfg.MaxFootYaw)
-	local footYaw = math.clamp(off * math.clamp(cfg.FootTurnToMove, 0, 1), -maxYaw, maxYaw)
 	local wantRot = frame.Rotation * CFrame.Angles(0, -footYaw, 0)
 
 	--[[

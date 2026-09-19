@@ -499,12 +499,14 @@ Config.Walk = {
 	PhaseRecover = 0.3,
 
 	--[[
-		How far the feet point along the direction of travel rather than along
-		the body's facing. 0 keeps them square to the body when strafing, 1
-		turns them fully into the step.
+		How far the feet turn towards the direction of travel, as a
+		fraction of MaxFootYaw. The turn peaks on the diagonals and falls
+		to nothing both straight ahead and straight sideways -- you
+		side-step with your feet square to you, not swivelled into the
+		direction you are sliding.
 	]]
 	FootTurnToMove = 0.35,
-	-- Hard cap on that, degrees, however far off-axis the travel is.
+	-- Degrees of turn at the diagonals, where it peaks.
 	MaxFootYaw = 25,
 	--[[
 		How far a PLANTED foot may end up from the body's facing, degrees,
