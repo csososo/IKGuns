@@ -94,7 +94,7 @@ Weights are in `Config.Aim.SpineJoints`.
    - `src/StarterPlayerScripts/` → LocalScripts in
      `StarterPlayer > StarterPlayerScripts`: `IKController` drives the system,
      `CharacterAnimator` plays the clips, `WalkTuner` is the gait panel,
-     `MovementController` owns speed, sprint and facing.
+     `MovementController` owns speed, sprint and the camera lock.
    - `src/ServerScriptService/CharacterSetup.server.lua` → a Script in
      `ServerScriptService`.
 2. Press play. Walk onto a slope — feet should tilt and meet it.
@@ -440,40 +440,41 @@ on its own is what reads as a mannequin. `ElbowBend` is posture and survives
 the blend, because a real arm never straightens even standing still;
 `ElbowSwing` is the extra flexion as the arm comes forward.
 
-### Running
+### Walking, jogging, sprinting
 
-`Config.Run` is a set of **overrides on the walk**, not a second gait.
-Everything in `ProceduralWalk` already scales with speed — stride, cadence,
-how far the body leans — so what actually separates a run from a walk is the
-tuning, not the machinery. The run profile is blended in across
-`BlendFrom`..`BlendTo`, so there is no switch to catch and part-speeds and
-diagonals land somewhere sensible on their own. Anything the table leaves out
-keeps its walk value.
+Three profiles — `Config.Walk`, `Config.Jog`, `Config.Sprint` — each a full
+copy of the walk with its own differences applied over it, so every key exists
+in all three. The gait blends between whichever two **bracket the current
+speed**, by their `AtSpeed`, so nothing switches and a speed between two
+profiles is genuinely between them.
 
-Two things genuinely change in kind rather than degree. `DutyFactor` drops
-below 0.5, which means a moment with neither foot down — a defect in a walk,
-the flight phase in a run, and what makes it a run at all. And
-`HeelStrikeAngle` crosses zero rather than merely shrinking, because a run
-lands on the forefoot instead of the heel.
+Everything in `ProceduralWalk` already scales with speed, so what separates
+them is tuning rather than machinery. Two things change in kind rather than
+degree: `DutyFactor` drops below 0.5, meaning a moment with neither foot down
+— a defect in a walk, the flight phase in a run — and `HeelStrikeAngle`
+crosses zero, because faster gaits land on the forefoot rather than the heel.
 
-`MovementController.client.lua` does two things. It picks between the walk
-and sprint speeds on Shift — and nothing more, because the gait has no notion
-of a sprint button, so anything else that changes your speed gets the right
-gait for free and no state can disagree with the legs.
+**Sprinting is directional.** You cannot sprint sideways or backwards, so
+holding Shift only reaches `SprintSpeed` when the input is actually forward;
+anything else settles for a jog. W, W+A and W+D all qualify. The gait follows
+on its own, because the gait only ever reads speed — the controller never
+tells it which profile to use.
 
-It also holds the character **facing the camera permanently**, which is shift
-lock's behaviour without shift lock. That is load-bearing: the gait's whole
-notion of strafing is velocity measured *across the body's own facing*, and
-with Roblox's default rotation the character turns to face wherever it is
-going — so that measurement is always zero, pressing A is a left turn rather
-than a side-step, and every strafe feature correctly does nothing. It also
-frees Shift, which would otherwise toggle shift lock and fight it.
+`MovementController.client.lua` changes nothing but `WalkSpeed`, eased rather
+than switched so a sprint builds instead of snapping. **Ctrl** toggles the
+camera lock, which holds the character facing the camera and centres the
+mouse — shift lock in all but name, moved off Shift because Shift is sprint
+now. It matters more than it looks: the gait's notion of strafing is velocity
+measured *across the body's own facing*, and unlocked, the character turns to
+face wherever it is going, so that measurement is always zero and every strafe
+feature correctly does nothing.
 
 ### Tuning it
 
-Press `]` in game for **WalkTuner**. One line at the top of it, `TUNING`,
-picks whether it edits the walk or the run — walk and run hold the same keys,
-so one panel drives either. It is pointed at the run for now. It holds the same `Config` table the gait
+Press `]` in game for the **gait tuner**. The button in its header cycles
+which profile the rows edit — all three hold the same keys, so one panel
+drives any of them. Which gait you are *in* is chosen by speed; the switch
+only picks which one you are editing. It holds the same `Config` table the gait
 reads, so a slider changes the walk on the next frame with no plumbing in
 between. Typing in a readout box is not clamped to the slider's range — the
 range is a guess at what is useful, not a limit on what is legal.

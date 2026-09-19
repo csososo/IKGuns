@@ -31,18 +31,26 @@ local TEXT = Color3.fromRGB(226, 226, 232)
 local DIM = Color3.fromRGB(150, 150, 160)
 
 --[[
-	Which profile the panel edits.
+	Which profile the panel edits, switched by the header button.
 
-	Walk and run hold the same set of keys, so one panel can drive either
-	and swapping is a single line. Pointed at the run for now, because that
-	is what is being tuned; put Config.Walk back to work on the walk again.
+	All three hold the same set of keys, so one panel drives any of them
+	and there is no reason for three. Ranges are shared for the same
+	reason: a value means the same thing in every gait, and only the
+	handful that exist solely for the faster ones need their own.
 
-	Ranges fall back to the walk's, since a value means the same thing in
-	both and only the handful that exist solely for running need their own.
+	Which gait you are actually IN is chosen by speed, not here -- this
+	only picks which one you are editing.
 ]]
-local TUNING = Config.Run
-local RANGES = Config.RunRanges
-local TITLE = (TUNING == Config.Run) and "SPRINT TUNER" or "WALK TUNER"
+local PROFILES = {
+	{ "WALK", Config.Walk },
+	{ "JOG", Config.Jog },
+	{ "SPRINT", Config.Sprint },
+}
+local current = 3
+
+-- One per slider, called when the profile switches so every row shows the
+-- value from the table it now points at.
+local refresh = {}
 
 --[[
 	Order matters: these are grouped the way you tune them, not the way the
@@ -59,8 +67,8 @@ local GROUPS = {
 	{ "Pelvis", { "BodyYaw", "PelvisList", "PelvisListPhase", "ChestCounter" } },
 	{ "Arms", { "ArmSwing", "ElbowBend", "ElbowSwing" } },
 	{ "Response", { "MinSpeed", "BlendTime", "SpeedSmooth", "LeanSpeed" } },
-	-- Sprint only: the speed itself, and where the profile fades in.
-	{ "Sprint", { "SprintSpeed", "BlendFrom", "BlendTo" } },
+	-- The speed this profile represents; the gait blends between them.
+	{ "Gait", { "AtSpeed" } },
 }
 
 local player = Players.LocalPlayer
@@ -98,8 +106,35 @@ header.Font = Enum.Font.Code
 header.TextSize = 13
 header.TextColor3 = TEXT
 header.TextXAlignment = Enum.TextXAlignment.Left
-header.Text = TITLE .. "   ]  hide"
+header.Text = "GAIT TUNER    ]  hide"
 header.Parent = root
+
+--[[
+	Switching profile re-points every row rather than rebuilding them: the
+	keys are identical across the three, so only the values shown differ.
+]]
+local switch = Instance.new("TextButton")
+switch.Size = UDim2.fromOffset(78, 20)
+switch.Position = UDim2.new(1, -(78 + PAD), 0, PAD + 1)
+switch.BackgroundColor3 = PANEL
+switch.BorderSizePixel = 0
+switch.Font = Enum.Font.Code
+switch.TextSize = 12
+switch.TextColor3 = FILL
+switch.Text = PROFILES[current][1]
+switch.Parent = root
+
+local switchCorner = Instance.new("UICorner")
+switchCorner.CornerRadius = UDim.new(0, 4)
+switchCorner.Parent = switch
+
+switch.Activated:Connect(function()
+	current = current % #PROFILES + 1
+	switch.Text = PROFILES[current][1]
+	for _, again in refresh do
+		again()
+	end
+end)
 
 local body = Instance.new("ScrollingFrame")
 body.Size = UDim2.new(1, 0, 1, -(22 + PAD * 2))
@@ -149,7 +184,7 @@ end
 	The readout is a TextBox, so anything the slider's range cannot reach --
 	or any number you already know you want -- can just be typed in.
 ]]
-local function slider(store, key: string, min: number, max: number)
+local function slider(key: string, min: number, max: number)
 	local row = Instance.new("Frame")
 	row.Size = UDim2.new(1, 0, 0, ROW)
 	row.BackgroundTransparency = 1
@@ -209,9 +244,13 @@ local function slider(store, key: string, min: number, max: number)
 	end
 
 	local function set(value: number)
-		store[key] = value
+		PROFILES[current][2][key] = value
 		show(value)
 	end
+
+	table.insert(refresh, function()
+		show(PROFILES[current][2][key])
+	end)
 
 	local function fromX(x: number)
 		local a = track.AbsolutePosition.X
@@ -252,19 +291,19 @@ local function slider(store, key: string, min: number, max: number)
 			-- guess at what is useful, not a limit on what is legal.
 			set(typed)
 		else
-			show(store[key])
+			show(PROFILES[current][2][key])
 		end
 	end)
 
-	show(store[key])
+	show(PROFILES[current][2][key])
 end
 
 for _, group in GROUPS do
 	label(group[1]:upper(), 11, DIM)
 	for _, key in group[2] do
-		local range = RANGES[key] or Config.WalkRanges[key]
-		if range and type(TUNING[key]) == "number" then
-			slider(TUNING, key, range[1], range[2])
+		local range = Config.WalkRanges[key] or Config.SprintRanges[key]
+		if range and type(PROFILES[current][2][key]) == "number" then
+			slider(key, range[1], range[2])
 		end
 	end
 end
@@ -289,11 +328,11 @@ copyCorner.Parent = copy
 	over Config.Walk. Nothing here survives the session otherwise.
 ]]
 copy.Activated:Connect(function()
-	local out = { "-- paste over the matching lines in " .. TITLE }
+	local out = { "-- paste over the matching lines in Config." .. PROFILES[current][1] }
 	for _, group in GROUPS do
 		table.insert(out, ("\t-- %s"):format(group[1]))
 		for _, key in group[2] do
-			local value = TUNING[key]
+			local value = PROFILES[current][2][key]
 			if type(value) == "number" then
 				table.insert(out, ("\t%s = %.3f,"):format(key, value))
 			end

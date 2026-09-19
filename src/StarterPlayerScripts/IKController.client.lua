@@ -7,7 +7,6 @@
 	add when you want other players to see it too.
 ]]
 
-local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -105,13 +104,6 @@ local function setup(character: Model)
 		end
 	end))
 end
-
-ContextActionService:BindAction("IKAim", function(_, state)
-	if active then
-		active.ik:SetAiming(state == Enum.UserInputState.Begin)
-	end
-	return Enum.ContextActionResult.Pass
-end, false, Enum.UserInputType.MouseButton2, Enum.KeyCode.ButtonL2)
 
 player.CharacterAdded:Connect(setup)
 player.CharacterRemoving:Connect(teardown)

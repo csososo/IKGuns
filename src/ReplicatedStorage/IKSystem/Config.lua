@@ -599,35 +599,44 @@ Config.Walk = {
 }
 
 --[[
-	Running.
+	The gaits above walking.
 
-	Built as a copy of the walk with the differences applied over it, so
-	every key exists in both and the sprint tuner has a full set to work
-	with. Everything in ProceduralWalk already scales with speed -- stride,
-	cadence, how far the body leans -- so what separates a run from a walk
-	is the tuning, not the machinery.
+	Each is a full profile: built as a copy of the walk with its own
+	differences applied over it, so every key exists in all three. The gait
+	blends between whichever two bracket the current speed, by AtSpeed, so
+	nothing switches and part-speeds land somewhere sensible on their own.
 
-	Blended in across BlendFrom..BlendTo rather than switched, so there is
-	no threshold to catch and part-speeds land somewhere sensible.
-
-	Signs follow the walk's, because they encode which way this rig's axes
-	point rather than anything about gait.
+	Everything in ProceduralWalk already scales with speed -- stride,
+	cadence, how far the body leans -- so what separates these is the
+	tuning, not the machinery. Signs follow the walk's, because they encode
+	which way this rig's axes point rather than anything about gait.
 ]]
-local RUN = {
+local function profile(overrides)
+	local built = {}
+	for key, value in Config.Walk do
+		built[key] = value
+	end
+	for key, value in overrides do
+		built[key] = value
+	end
+	return built
+end
+
+Config.Jog = profile({
+	AtSpeed = 18,
 	--[[
 		Below 0.5 there is a moment with neither foot down. In a walk that
-		is a defect; in a run it is the flight phase, and it is what makes
-		it a run at all.
+		is a defect; above one it is the flight phase, and it is what makes
+		a jog a jog rather than a brisk walk.
 	]]
 	DutyFactor = 0.35,
 	StepLength = 3.2,
 	StepHeight = 1.0,
 	FootAhead = 0.1,
-	-- The speed the stride above was judged at.
 	StrideSpeedRef = 18,
 
-	-- Forefoot strike: a run lands toes-first, so this crosses zero rather
-	-- than merely shrinking.
+	-- Forefoot strike: this lands toes-first, so the angle crosses zero
+	-- rather than merely shrinking.
 	HeelStrikeAngle = -6,
 	ToeOffAngle = 26,
 	HeelRiseAt = 0.45,
@@ -639,7 +648,6 @@ local RUN = {
 	PelvisList = 1.2,
 	ChestCounter = 0.8,
 
-	-- Arms drive a sprint: bent hard, swinging much further.
 	ArmSwing = -34,
 	ElbowBend = 45,
 	ElbowSwing = 25,
@@ -647,28 +655,66 @@ local RUN = {
 	StrafeStagger = 0.7,
 	StrafeWidth = 0.4,
 	StrafeLift = 0.3,
+})
+
+Config.Sprint = profile({
+	AtSpeed = 26,
+	-- Longer flight, longer reach, and far more of the body involved.
+	DutyFactor = 0.28,
+	StepLength = 4.8,
+	StepHeight = 1.3,
+	FootAhead = 0.2,
+	StrideSpeedRef = 26,
+
+	HeelStrikeAngle = -14,
+	ToeOffAngle = 34,
+	HeelRiseAt = 0.38,
+
+	BobHeight = 0.18,
+	SwayWidth = 0.01,
+	LeanAngle = -22,
+	BodyYaw = -20,
+	PelvisList = 0.8,
+	ChestCounter = 0.9,
+
+	ArmSwing = -48,
+	ElbowBend = 70,
+	ElbowSwing = 30,
+
+	-- A sprint is never really sideways, but the values still have to be
+	-- something if you turn hard at speed.
+	StrafeStagger = 0.8,
+	StrafeWidth = 0.45,
+	StrafeLift = 0.35,
+})
+
+Config.Walk.AtSpeed = 7
+
+
+--[[
+	The movement controller: speeds and keys, not gait values.
+
+	You cannot sprint sideways or backwards, so holding sprint only reaches
+	SprintSpeed when the input is actually forward -- otherwise it settles
+	for a jog, and the gait follows because the gait only ever reads speed.
+]]
+Config.Motion = {
+	WalkSpeed = 7,
+	JogSpeed = 18,
+	SprintSpeed = 26,
+
+	SprintKey = Enum.KeyCode.LeftShift,
+	CameraLockKey = Enum.KeyCode.LeftControl,
+
+	-- How forward the input must be for a full sprint, as a dot product.
+	-- 0.5 is sixty degrees either side, so W, W+A and W+D all qualify.
+	SprintForward = 0.5,
+	-- Seconds for the speed to change, so a sprint builds rather than snaps.
+	SpeedChangeTime = 0.25,
 }
 
-Config.Run = {}
-for key, value in Config.Walk do
-	Config.Run[key] = value
-end
-for key, value in RUN do
-	Config.Run[key] = value
-end
-
--- Not gait values, and so deliberately outside the table that blends.
-Config.Run.WalkSpeed = 7
-Config.Run.SprintSpeed = 18
-Config.Run.SprintKey = Enum.KeyCode.LeftShift
--- Where the run profile starts and finishes taking over, in studs/s.
-Config.Run.BlendFrom = 9
-Config.Run.BlendTo = 16
-
-Config.RunRanges = {
-	SprintSpeed = { 8, 60 },
-	BlendFrom = { 2, 40 },
-	BlendTo = { 4, 60 },
+Config.SprintRanges = {
+	AtSpeed = { 2, 60 },
 }
 
 

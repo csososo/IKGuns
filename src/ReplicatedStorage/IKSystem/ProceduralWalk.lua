@@ -39,29 +39,52 @@ local ORDER = { "Left", "Right" }
 local SETTLED = 0.05
 
 --[[
-	The tuned values, blended between walking and running by speed.
+	Gaits in the order they are reached, for the blend below to walk along.
+]]
+local STAGES = { Config.Walk, Config.Jog, Config.Sprint }
 
-	Falls through to Config.Walk for anything Config.Run does not override,
-	so a run profile only has to state what differs. Resolved once a frame
-	into one reused table rather than per lookup: every read below wants the
-	same answer, and the gait reads dozens of them per leg.
+--[[
+	The tuned values for the current speed.
+
+	Blended between whichever two gaits bracket it, so there is no
+	threshold to cross and a speed between two profiles is genuinely
+	between them rather than snapped to one. Below the slowest and above
+	the fastest it simply holds that end.
+
+	Resolved once a frame into one reused table rather than per lookup:
+	every read below wants the same answer and the gait takes dozens of
+	them per leg. Falls through to Config.Walk for anything a profile does
+	not carry.
 ]]
 function ProceduralWalk:_tuned(): { [string]: any }
-	local run = Config.Run
-	local span = math.max(run.BlendTo - run.BlendFrom, 1e-3)
-	local mix = math.clamp((self.speed - run.BlendFrom) / span, 0, 1)
-	self.run = mix
+	local speed = self.speed
+	local lower, upper, mix = STAGES[1], STAGES[1], 0
+
+	for i = 1, #STAGES - 1 do
+		local a, b = STAGES[i], STAGES[i + 1]
+		if speed >= b.AtSpeed then
+			lower, upper, mix = b, b, 0
+		elseif speed > a.AtSpeed then
+			lower, upper = a, b
+			mix = (speed - a.AtSpeed) / math.max(b.AtSpeed - a.AtSpeed, 1e-3)
+			break
+		else
+			break
+		end
+	end
+	self.gait = mix
 
 	local tuned = self.tuned
-	for key, value in run do
-		local walk = Config.Walk[key]
+	for key, value in upper do
+		local from = lower[key]
 		--[[
-			Only numbers blend. Run carries its own settings too -- the
-			sprint key, the speeds, the blend range -- and those are not
-			gait values and have no walk counterpart to cross-fade with.
+			Only numbers blend. The profiles carry joint names and other
+			settings too, and those have no midpoint.
 		]]
-		if type(value) == "number" and type(walk) == "number" then
-			tuned[key] = walk + (value - walk) * mix
+		if type(value) == "number" and type(from) == "number" then
+			tuned[key] = from + (value - from) * mix
+		else
+			tuned[key] = value
 		end
 	end
 	return tuned
@@ -76,7 +99,7 @@ function ProceduralWalk.new(rig)
 	self.speed = 0
 	self.cadence = 0
 	self.velocity = nil
-	self.run = 0
+	self.gait = 0
 	-- Anything Run does not override falls through to the walk's value.
 	self.tuned = setmetatable({}, { __index = Config.Walk })
 	self:_measure()
