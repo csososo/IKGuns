@@ -257,6 +257,20 @@ to meet the heading it is about to land on. At low blend it eases back to
 facing anyway, so turning on the spot brings the feet round rather than
 leaving them splayed.
 
+**A landing may not cross the foot already down.** Turning while walking
+swings the body between a plant and the next landing, and the target can end
+up across the standing leg. The clamp is measured against the **planted
+foot**, not the body's midline — an earlier version used the pelvis, which
+moves, so the constrained foot held a fixed offset from a moving body and
+slid instead of stepping. A planted foot is fixed in the world, so a clamp
+against it is fixed too, and only the sideways part is limited so the step
+keeps its reach along travel.
+
+When a landing has to be shoved further than `MinFootGap` to clear, that is
+the *standing* foot being in the way rather than this one aiming badly, so it
+steps as soon as this foot is down instead of seeing out a stance it is now
+badly placed for.
+
 **Side-steps are shorter, and have to be.** The feet are held apart *across*
 the body, so sideways travel runs the stride along the very axis keeping them
 apart. A step longer than twice the separation lands the trailing foot past
